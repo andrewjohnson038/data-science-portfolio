@@ -71,9 +71,67 @@ Spotify2023.released_month = Spotify2023.released_month.astype('str')
 Spotify2023.released_month = Spotify2023.released_month.map(months_dictionary)
 
 # view final dataset to check data cleansing done
-print(Spotify2023.to_string())
+#print(Spotify2023.to_string()) #view whole output
+print(Spotify2023.head(50).to_string()) #limit to viewing 50 rows
 # write the final df to an excel sheet for visualization
 Spotify2023.to_excel('Spotify2023_TableauProj.xlsx', sheet_name='Spotify2023_stats')
 
 # Link to Visual in Tableau:
 # https://public.tableau.com/app/profile/andrew.johnson1314/viz/Spotify2023_Charts_Statistics/Spotify2023StatsDashboard
+
+# for the artists tab in Tableau, I want to create a new tab in the excel sheet (new table) where songs with multiple artists are split into their own rows so that we can run rank individual artists by streams
+# to do this, we will need to spliat the delimiter (delimted by a comma) and add a new tab to the excel sheet for our new table
+
+# Step 1: Split the artists column based on comma delimiter
+Spotify2023['artist_name(s)'] = Spotify2023['artist_name(s)'].str.split(', ')
+
+# Step 2: Explode the list of artists
+Spotify2023_artists = Spotify2023.explode('artist_name(s)')
+
+#Step 2.1: lets drop the "artist_count" column from this df since it is not needed
+Spotify2023_artists = Spotify2023_artists.drop(columns=['artist_count'])
+
+# Step 3: add "a." to each column name to seperate naming conventions from original table
+Spotify2023_artists = Spotify2023_artists.rename(columns={
+    'artist_name(s)' : 'a.artist_name(s)',
+    'track_name' : 'a.track_name',
+    'released_year' : 'a.released_year',
+    'released_month' : 'a.released_month',
+    'released_day' : 'a.released_day',
+    'in_spotify_playlists' : 'a.in_spotify_playlists',
+    'in_spotify_charts' : 'a.in_spotify_charts',
+    'streams' : 'a.streams',
+    'in_apple_playlists' : 'a.in_apple_playlists',
+    'in_apple_charts' : 'a.in_apple_charts',
+    'in_deezer_playlists' : 'a.in_deezer_playlists',
+    'in_deezer_charts' : 'a.in_deezer_charts',
+    'in_shazam_charts' : 'a.in_shazam_charts',
+    'bpm' : 'a.bpm',
+    'key' : 'a.key',
+    'mode' : 'a.mode',
+    'danceability_%' : 'a.danceability_%',
+    'valence_% ' : 'a.valence_% ',
+    'energy_%' : 'a.energy_%',
+    'acousticness_%' : 'a.acousticness_%',
+    'instrumentalness_%' : 'a.instrumentalness_%',
+    'liveness_%' : 'a.liveness_%',
+    'speechiness_%' : 'a.speechiness_%'})
+
+# Step 4: Check that the new df delimited and appended properly
+#print(Spotify2023_artists.to_string()) #view whole output
+print(Spotify2023_artists.head(50).to_string()) #limit to viewing 50 rows
+#looks good. on to next step
+
+#now lets sum streams by each artist
+
+# Step 5: Write the df as a new tab in the excel sheet
+# Create a Pandas Excel writer using XlsxWriter as the engine
+with pd.ExcelWriter('Spotify2023_TableauProj.xlsx', engine='openpyxl', mode='a') as writer:
+
+# Description for the code above^: This is creating a context manager using the with statement to open an Excel file for writing or appending data using Pandas
+    # mode='a' stands for "append": This indicates we are appending the excel sheet
+    # engine='openpyxl': This specifies the engine to use for writing to the Excel file. openpyxl is one of the supported engines by Pandas for writing Excel files.
+
+# Write the DataFrame with exploded artists to a new tab in the Excel file
+    Spotify2023_artists.to_excel(writer, sheet_name='Spotify2023_artists', index=False)
+# Note: The index=False parameter is used to indicate that you do not want to include the index column when writing the DataFrame to the output file.
