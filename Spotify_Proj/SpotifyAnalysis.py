@@ -1,5 +1,7 @@
-#In this project, the priamry objective is to retrieve data through an API call and bring it into a BI tool (Tableau) to allow for further drill through and analysis of the data
-#In this example, we are pulling a 2023 dataset from kaggle on the top Spotify songs to simulate pulling from a public repository of data, doing some simple data wrangling/formatting, and preparing it for use in tableau (link at bottom)
+# Link to Tableau Visual: https://public.tableau.com/app/profile/andrew.johnson1314/viz/Spotify2023_Charts_Statistics/Spotify2023StatsDashboard
+
+# In this project, the priamry objective is to retrieve data through an API call and bring it into a BI tool (Tableau) to allow for further drill through and analysis of the data
+# In this example, we are pulling a 2023 dataset from kaggle on the top Spotify songs to simulate pulling from a public repository of data, doing some simple data wrangling/formatting, and preparing it for use in tableau (link at bottom)
 
 # uncomment pip install if the libraries are not installed yet
 # pip install pandas
@@ -79,9 +81,6 @@ print(Spotify2023.head(50).to_string()) #limit to only viewing 50 rows
 
 # write the final df to an excel sheet for visualization
 Spotify2023.to_excel('Spotify2023_TableauProj.xlsx', sheet_name='Spotify2023_stats')
-
-# Link to Visual in Tableau:
-# https://public.tableau.com/app/profile/andrew.johnson1314/viz/Spotify2023_Charts_Statistics/Spotify2023StatsDashboard
 
 # for the artists tab in Tableau, I want to create a new tab in the excel sheet (new table) where songs with multiple artists are split into their own rows so that we can rank individual artists by streams
 # to do this, we will need to split the delimiter (delimted by a comma) and add a new tab to the excel sheet for our new table
