@@ -555,6 +555,7 @@ print("Difference in trend between next year and today (% return):", trend_diffe
 # Define the CSS for positive and negative trends
 positive_icon = '<span style="color: green;">&#9650;</span>'
 negative_icon = '<span style="color: red;">&#9660;</span>'
+neutral_icon = '<span style="color: gray;">&#8212;</span>'
 
 # Create a trend icon for if the forecasted price is positive or negative
 if trend_difference_percentage > 0:
@@ -562,7 +563,7 @@ if trend_difference_percentage > 0:
 elif trend_difference_percentage < 0:
     trend_icon = negative_icon  # Use negative trend icon
 else:
-    trend_icon = ""  # No trend icon if the difference is 0
+    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
 
 # give title for 1 year forecasted metrics
 st.sidebar.subheader("1 Year Price Forecast:")
@@ -607,7 +608,7 @@ if YOY_difference_percentage > 0:
 elif YOY_difference_percentage < 0:
     trend_icon = negative_icon  # Use negative trend icon
 else:
-    trend_icon = ""  # No trend icon if the difference is 0
+    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
 
 # give title for YOY trend metric
 st.sidebar.subheader("YOY Price Change:")
@@ -644,6 +645,14 @@ print("Year-over-Year Average Closing Price Change by Year:")
 print(yoy_avg_close_price_change_by_year)
 print("Year-over-Year Average Closing Price Change:")
 print(f"{yoy_avg_close_price_change}%")
+
+# Create a trend icon for if the YOY price is positive or negative:
+if yoy_avg_close_price_change > 0:
+    trend_icon = positive_icon  # Use positive trend icon
+elif yoy_avg_close_price_change < 0:
+    trend_icon = negative_icon  # Use negative trend icon
+else:
+    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
 
 # Write avg price change % over last 10 yrs to sidebar
 st.sidebar.subheader("AVG YOY Price Change (Last 10 Yrs):")
