@@ -36,24 +36,37 @@ st.sidebar.header('Choose Stock & Forecast Range')
 
 
 # (0.2): Set Time Parameters for our Data
+print("\n Today Date:")
 today = datetime.today() # retrieve today's data in sme format as above. date.today() retrieves the current date; apartof datetime module in Python. .strftime("%y-%m-%d") converts the date object to a string with the above format
 print(today)
+
+print("\n Yesterday Date:")
 yesterday = today - timedelta(days=1) # if we need to write code for the day before today, can use this
 print(yesterday)
-start_date = today - timedelta(days=365*10) # retrieve data starting on this date
+
+print("\n 10 Yrs Ago Date:")
+start_date = today.replace(year=today.year - 10) # retrieve data starting on this date 10 years ago
 print(start_date)
 
 # (0.3): Load the ticker volume data
 def load_data(ticker): # define our "load data" function. The function "load_data" takes one parameter, "ticker", as a string representing the ticker symbol of the stock.
     stock_data = yf.download(ticker, start=start_date, end=today) # Fetch ticker data from yahoo finance within our date range. returns data in a pandas df (data = df)
     stock_data.reset_index(inplace=True) # this will reset the index to pull the data starting on today's date in the first column
-    return stock_data
+
+    # Fill in any missing dates with the most recent date's data
+    stock_data['Date'] = pd.to_datetime(stock_data['Date'])  # Convert 'Date' column to datetime
+    date_range = pd.date_range(start=stock_data['Date'].min(), end=stock_data['Date'].max())  # Create a complete date range within the fetched data
+    date_range_df = pd.DataFrame({'Date': date_range})  # Convert date range to DataFrame
+    stock_data = pd.merge(date_range_df, stock_data, on='Date', how='left').ffill()  # Merge date range with original DataFrame, filling missing values with the last available data
+
+    return stock_data # return data with the range and ticker params to df "stock_data"
 
 # (0.4): Set our stock list; Create a drop-down & year range slider for our data
 
 # choose our stocks to analyze and put into a list. Let's use S&P 500 stocks
-stocks = ("MMM", "ABT", "ABBV", "ABMD", "ACN", "ATVI", "ADBE", "AMD", "AAP", "AES", "AFL", "A", "APD", "AKAM", "ALK", "ALB", "ARE", "ALGN", "ALLE", "LNT", "ALL", "GOOGL", "GOOG", "MO", "AMZN", "AMCR", "AEE", "AAL", "AEP", "AXP", "AIG", "AMT", "AWK", "AMP", "ABC", "AME", "AMGN", "APH", "ADI", "ANSS", "ANTM", "AON", "AOS", "APA", "AAPL", "AMAT", "APTV", "ADM", "ANET", "AJG", "AIZ", "T", "ATO", "ADSK", "ADP", "AZO", "AVB", "AVY", "BKR", "BLL", "BAC", "BK", "BAX", "BDX", "BRK.B", "BBY", "BIO", "BIIB", "BLK", "BA", "BKNG", "BWA", "BXP", "BSX", "BMY", "AVGO", "BR", "BF.B", "CHRW", "COG", "CDNS", "CPB", "COF", "CPRI", "CAH", "KMX", "CCL", "CAT", "CBOE", "CBRE", "CDW", "CE", "CNC", "CNP", "CTL", "CERN", "CF", "SCHW", "CHTR", "CVX", "CMG", "CB", "CHD", "CI", "CINF", "CTAS", "CSCO", "C", "CFG", "CTXS", "CLX", "CME", "CMS", "KO", "CTSH", "CL", "CMCSA", "CMA", "CAG", "CXO", "COP", "ED", "STZ", "COO", "CPRT", "GLW", "CTVA", "COST", "COTY", "CCI", "CSX", "CMI", "CVS", "DHI", "DHR", "DRI", "DVA", "DE", "DAL", "XRAY", "DVN", "DXCM", "FANG", "DLR", "DFS", "DISCA", "DISCK", "DISH", "DG", "DLTR", "D", "DOV", "DOW", "DTE", "DUK", "DRE", "DD", "DXC", "ETFC", "EMN", "ETN", "EBAY", "ECL", "EIX", "EW", "EA", "EMR", "ETR", "EOG", "EFX", "EQIX", "EQR", "ESS", "EL", "EVRG", "ES", "RE", "EXC", "EXPE", "EXPD", "EXR", "XOM", "FFIV", "FB", "FAST", "FRT", "FDx", "FIS", "FITB", "FE", "FRC", "FISV", "FLT", "FLIR", "FLS", "FMC", "F", "FTNT", "FTV", "FBHS", "FOX", "FOXA", "BEN", "FCX", "GPS", "GRMN", "IT", "GD", "GE", "GIS", "GM", "GPC", "GILD", "GL", "GPN", "GS", "GWW", "HRB", "HAL", "HBI", "HOG", "HIG", "HAS", "HCA", "PEAK", "HP", "HSIC", "HSY", "HES", "HPE", "HLT", "HFC", "HOLX", "HD", "HON", "HRL", "HST", "HWM", "HPQ", "HUM", "HBAN", "HII", "IEX", "IDXX", "INFO", "ITW", "ILMN", "INCY", "IR", "INTC", "ICE", "IBM", "IP", "IPG", "IFF", "INTU", "ISRG", "IVZ", "IPGP", "IQV", "IRM", "JBHT", "JEF", "SJM", "JNJ", "JCI", "JPM", "JNPR", "KSU", "K", "KEY", "KEYS", "KMB", "KIM", "KMI",
-          )
+ticker_csv_link = 'https://raw.githubusercontent.com/andrewjohnson038/DataSciencePortfolio/master/StockPredictorApp/stock_info.csv'
+stock_tickers = pd.read_csv(ticker_csv_link)
+stocks = stock_tickers['Ticker'].to_list()
 
 # creates a dropdown box for our stock options. First is the dd title, second is our dd options
 selected_stock = st.sidebar.selectbox("Select Stock:", stocks)
@@ -112,7 +125,7 @@ st.write("<h1 style='text-align: center;'>Stock Details</h1>", unsafe_allow_html
 sh_c = st.container()
 
 # define columns for the stock_details container (sd_c)
-sh_col1, sh_col2 =st.columns(2)
+sh_col1, sh_col2 = st.columns(2)
 
 
 # write container to app with columns for our stock current details and history data:
@@ -163,13 +176,13 @@ with sh_c:
 
             # Create a variable for Trade Volume & extract the data for today if available:
             today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
-            # Format volume with commas
-            # today_vol = "{:,}".format(today_vol)
-            # Check if data is available for the field today
+            # Check if data is available for the field today and format with commas
             if not today_vol.empty:
                 today_vol = today_vol.iloc[0]
+                # Format trade volume number with commas for thousands separator
+                today_vol = "{:,.2f}".format(today_vol)
                 # Write the value to the app for today in KPI format if the data is available
-                sh_col1_2.metric(label="Today's Trade Volume:", value=str(round(today_vol, 2)))
+                sh_col1_2.metric(label="Today's Trade Volume:", value=str(today_vol))
             else:
                 # Write the data is not available for the field if missing
                 sh_col1_2.warning(f"Today's Trade Volume: {NA}")
@@ -300,45 +313,79 @@ with sh_c:
 
 
 # (1.2): Show stock price history by year on this date. We will have to create a different df using our data
-# Get Current Year
+
+# Get Current Year #
 Current_Year = datetime.now().year
 print("\n CURRENT Year:")
 print(Current_Year)
 
-# Get Current Month
+# Get Current Month #
 Current_Month = datetime.now().month
 print("\n CURRENT MONTH:")
 print(Current_Month)
 
-#Get Current Day
+# Get Current Day #
 print("\n CURRENT DAY:")
 Current_Day = datetime.now().day
 print(Current_Day)
 
-print("\n Variable1:")
-Variable1 = stock_data[stock_data['Date'].dt.month == Current_Month] # filters stock_data df to this month throughout all years
-print(Variable1)
+# Get data from each available day of the current month through all years
 
-print("\nVariable2:")
-Variable2 = Variable1[Variable1['Date'].dt.day == Current_Day] # filters stock_data df to this day throughout all years
-print(Variable2) # check df is working
+print("\n Current Month Yearly Historical Data:")
+ct_month_yrly_data = stock_data[stock_data['Date'].dt.month == Current_Month] # filters stock_data df to this month throughout all years
+print(ct_month_yrly_data) # check the df is pulling the correct data
 
-yearly_data = Variable2
+# Get data from each available day of the current day through the all years
+print("\n Current Day Yearly Historical Data:")
+yearly_data = ct_month_yrly_data[ct_month_yrly_data['Date'].dt.day == Current_Day] # filters stock_data df to this day throughout all years
+print(yearly_data) # check the df is pulling the correct data
+
+# I want to add a KPI column to 'yearly_data' for if the close price the year before was lower or higher to visualize price trend over time:
+
+# Make a copy of the DataFrame and reset its index so we can do a loop 1-10 for the indicators
+yearly_data = yearly_data.copy().reset_index(drop=True)
+print(yearly_data)
+
+# Add a "indicator" column and add with empty strings
+yearly_data['Trend'] = ''
+
+# Iterate through each row starting from the second row
+for i in range(1, len(yearly_data)):
+    # Get the closing price of the current row and the previous row
+    current_close = yearly_data.at[i, 'Close']   # close price at current row
+    previous_close = yearly_data.at[i - 1, 'Close']   # close price at row before the previous
+
+    # Compare current close with previous close
+    if current_close > previous_close:
+        yearly_data.at[i, 'Trend'] = '↑'  # Up arrow
+    elif current_close < previous_close:
+        yearly_data.at[i, 'Trend'] = '↓'  # Down arrow
+    else:
+        yearly_data.at[i, 'Trend'] = '■'  # Square
+
+# Set the indicator for the first row as yellow square since there is no previous row
+yearly_data.at[0, 'Trend'] = '■'
+
+# check index reset and indicators added properly:
+print("\n Yearly History Table W/ Indicators:")
+print(yearly_data)
+
+# write table into our container
 
 with sh_c:
     # write a table of the past data within the last 10 years on this date
     sh_col2.write("Ticker Price History (Last 10 Years):") # provide title for raw data visual
-    sh_col2.dataframe(yearly_data, hide_index=True)
+    sh_col2.dataframe(yearly_data.sort_values(by='Date', ascending=False), hide_index=True)
 
     # (1.3): Create a Time Series Visual for our Data:
-    History_Chart_Title = "Price History (Last 10 Years):"
-    sh_col2.write(History_Chart_Title)
+    Price_History_Tbl_Title = "Price History (Last 10 Years):"
+    sh_col2.write(Price_History_Tbl_Title)
     def plot_raw_data(): # define a function for our plotted data (fig stands for figure)
         fig = go.Figure() # create a plotly graph object.
         fig.add_trace(go.Scatter(x=stock_data['Date'], y=stock_data['Open'], name='stock_open'))
         fig.add_trace(go.Scatter(x=stock_data['Date'], y=stock_data['Open'], name='stock_close'))
         fig.layout.update(xaxis_rangeslider_visible=True) # add axis slider to graph to adjust time of visual
-        sh_col2.plotly_chart(fig)
+        sh_col2.plotly_chart(fig, use_container_width=True) # writes the graph to app and fixes width to the container width
     plot_raw_data()
 
 
@@ -541,7 +588,7 @@ today_last_year = today_year-1
 p_ly = f_cd[f_cd['ds'].dt.year == today_last_year] # filters stock_data df to this day throughout all years
 print(p_ly[['ds', 'trend']])
 
-price_year_ago = p_ly['trend'].values[0]
+price_year_ago = p_ly['trend'].values[0] #values[0] grabs the first value
 
 # Get change # & percentage:
 print("YOY Price Change")
@@ -580,7 +627,7 @@ else:
 # Add KPI for Avg YOY price change over last 10 years from yesterday:
 
 # Ensure DataFrame is sorted by date
-Price_L10yrs = Variable2.sort_values(by='Date')
+Price_L10yrs = yearly_data.sort_values(by='Date')
 
 # Extract year from the date
 Price_L10yrs['Year'] = pd.to_datetime(Price_L10yrs['Date']).dt.year
