@@ -31,7 +31,7 @@ import pandas as pd
 
 # (0.1): Set Layout of App, Version and Provide Title
 st.set_page_config(layout='wide', initial_sidebar_state='expanded') # sets layout to wide
-st.sidebar.markdown("<div align='center'>App Version: 1.0 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div align='center'>App Version: 1.1 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')
 
 
