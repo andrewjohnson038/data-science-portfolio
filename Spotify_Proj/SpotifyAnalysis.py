@@ -1,7 +1,7 @@
 # Link to Tableau Visual: https://public.tableau.com/app/profile/andrew.johnson1314/viz/Spotify2023_Charts_Statistics/Spotify2023StatsDashboard
 
 # In this project, the priamry objective is to retrieve data through an API call and bring it into a BI tool (Tableau) to allow for further drill through and analysis of the data
-# In this example, we are pulling a 2023 dataset from kaggle on the top Spotify songs to simulate pulling from a public repository of data, doing some simple data wrangling/formatting, and preparing it for use in tableau (link at bottom)
+# In this example, we are pulling a 2023 dataset from kaggle on the top Spotify songs to simulate pulling from a public repository of data, doing some simple data wrangling/formatting, and preparing it for use in tableau (link at the top)
 
 # uncomment pip install if the libraries are not installed yet
 # pip install pandas
