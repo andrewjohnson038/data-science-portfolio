@@ -1,0 +1,17 @@
+Project Purpose/Description:
+- The purpose of this project was to pull a dataset by API request, cleanse and manipulate the data in python, and then visualize the data in a BI tool (Tableau).
+- The data set was pulled from Kaggle via API request, and consists of metrics on the top Spotify songs of 2023.
+
+  Steps:
+1. Pulled a zipfile (top-spotify-songs-2023.zip) of the dataset via Kaggle API request; set the file location for the zip file.
+2. Unzipped the file and processed the csv file (spotify-2023.csv) as a pandas df within Python (SpotifyAnalysis.py).
+3. Inspected the data set, filled in/removed Nulls, and created a view off of the original dataset to isolate individual artists by track in order to summarize total streams per artist.
+4. Wrote the final dataframes to excel (Spotify2023_TableauProj.xlsx)
+
+
+API Request:
+- If you are looking to pull data from Kaggle via API or mimic the project using the same dataset, you will need to follow the API set up instructions here: (API GitHub directions on how to use https://github.com/Kaggle/kaggle-api)
+  
+Coding file:
+- SpotifyAnalysis.py -> Python code used to pull and prep the data for use in Tableau. Link to Tableau visual here: (https://public.tableau.com/app/profile/andrew.johnson1314/viz/Spotify2023_Charts_Statistics/DB_Home)
+  
