@@ -15,7 +15,7 @@ from streamlit_option_menu import option_menu
 # import yfinance library (used to retrieve financial data from yahoo finance)
 import yfinance as yf
 # import live pricing from yahoo finance
-import yahoo_fin.stock_info
+from yahoo_fin import stock_info as si
 # import prophet library (prophet is an open source time series analysis module we will use with plotly to analyze and predict our stock data)
 from prophet import Prophet
 from prophet.plot import plot_plotly
@@ -213,7 +213,7 @@ data_load_state.empty() # changes the load text to done when loaded
 # this will allow us to use this var for calculations later in the app if we don't have a current mkt price
 # Define A function to get the latest close price and its date:
 
-@st.cache_data()
+
 def last_close_price_field(stock_data):
     # Remove rows where Close is NaN or None
     data_valid = stock_data.dropna(subset=['Close'])
@@ -233,7 +233,7 @@ last_close_price, last_close_date = last_close_price_field(stock_data)
 last_close_date = last_close_date.strftime('%Y-%m-%d')
 
 # Retrieve the Current Stock Price, Assign Var & Add to Sidebar:
-Current_Mkt_Price = yahoo_fin.stock_info.get_live_price(selected_stock)  # pull price based on the stock selected
+Current_Mkt_Price = si.get_live_price(selected_stock)  # pull price based on the stock selected
 
 # Create a var for current price that retrieves the last close price if the market price is unavailable:
 if Current_Mkt_Price is not None:
