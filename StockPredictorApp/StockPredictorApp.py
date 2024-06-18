@@ -10,10 +10,12 @@
 from datetime import datetime, timedelta
 # import streamlit library (open source library for specfic to data science to quickly build an application front end for the data with minimal python code)
 import streamlit as st
-import yahoo_fin.stock_info
+# add extension lib for streamlit to add a options menu
 from streamlit_option_menu import option_menu
 # import yfinance library (used to retrieve financial data from yahoo finance)
 import yfinance as yf
+# import live pricing from yahoo finance
+import yahoo_fin.stock_info
 # import prophet library (prophet is an open source time series analysis module we will use with plotly to analyze and predict our stock data)
 from prophet import Prophet
 from prophet.plot import plot_plotly
