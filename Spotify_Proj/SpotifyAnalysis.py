@@ -112,16 +112,17 @@ print(Spotify2023.at[12, 'key']) # checking song key was filled
 # Write the final df to an excel sheet for visualization
 Spotify2023.to_excel('Spotify2023_TableauProj.xlsx', sheet_name='Spotify2023_stats')
 
+# Section 1:
 # For the artists tab in Tableau, I want to create a new tab in the excel sheet (new table) where songs with multiple artists are split into their own rows so that we can rank individual artists by streams
 # To do this, we will need to split the delimiter (delimted by a comma) and add a new tab to the excel sheet for our new table
 
-# Step 1: Split the artists column based on comma delimiter
+# Split the artists column based on comma delimiter
 Spotify2023['artist_name(s)'] = Spotify2023['artist_name(s)'].str.split(', ')
 
-# Step 2: Explode the list of artists
+# Explode the list of artists
 Spotify2023_artists = Spotify2023.explode('artist_name(s)')
 
-# Step 2.1: lets drop the fields we don't need. Let's drop all fields except artist name and streams.
+# lets drop the fields we don't need. Let's drop all fields except artist name and streams.
 Spotify2023_artists = Spotify2023_artists.drop(columns=[
     'artist_count',
     'track_name',
@@ -147,12 +148,12 @@ Spotify2023_artists = Spotify2023_artists.drop(columns=[
     'liveness_%',
     'speechiness_%'])
 
-# Step 3: Check that the new df delimited and columns dropped properly.
+# Section 3: Check that the new df delimited and columns dropped properly.
 print(Spotify2023_artists.head(50).to_string()) # This limits to viewing only 50 rows of the df
 # To view the whole output, use: print(Spotify2023_artists.to_string())
 # Looks good. On to next step.
 
-# Step 4: Deduplicate Artists & Sum the Streams
+# Section 4: Deduplicate Artists & Sum the Streams
 # First, let's check that 'streams' was brought in as an integer and not an object:
     # Check if 'streams' is an integer:
 if Spotify2023_artists['streams'].dtype == 'int64':
@@ -182,7 +183,8 @@ Spotify2023_artists.info()
 
 # Mission Success: Let's now de-dup the artists, sum up the streams by artist, and add a rank column to the df:
 
-# Step 5: Add a column for "Rank" to rank each artists by total streams (Note: If a artist featured on a song, those streams will be included in thier total stream count)
+# Section 5: Add a column for "Rank" to rank each artists by total streams (Note: If a artist featured on a song, those streams will be included in thier total stream count)
+
 # Group by artists and sum up the streams
 Spotify2023_artists = Spotify2023_artists.groupby('artist_name(s)')['streams'].sum().reset_index()
 # Rank the artists by their total streams & add 'artist_rank' column
@@ -199,7 +201,7 @@ Spotify2023_artists = Spotify2023_artists.dropna(subset=['artist_name(s)'])  # D
 print(Spotify2023_artists.head(50).to_string())  # review changes
 
 
-# Step 6: Let's add "a." to each column name to seperate naming conventions from original table
+# Section 6: Let's add "a." to each column name to seperate naming conventions from original table
 Spotify2023_artists = Spotify2023_artists.rename(columns={
     'artist_name(s)' : 'a.artist_name',
     'artist_rank' : 'a.artist_rank',
@@ -210,7 +212,8 @@ print(Spotify2023_artists)  # review changes
 Spotify2023_artists = Spotify2023_artists.sort_values(by='a.artist_rank') # sort by artist rank
 Spotify2023_artists = Spotify2023_artists.head(100) # head = Select the first 100 rows
 
-# Step 7: Write the df as a new tab in the excel sheet
+# Section 7: Write the df as a new tab in the excel sheet
+
 # Create a Pandas Excel writer using XlsxWriter as the engine
 with pd.ExcelWriter('Spotify2023_TableauProj.xlsx', engine='openpyxl', mode='a') as writer:
 
