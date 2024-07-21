@@ -10,8 +10,6 @@
 from datetime import datetime, timedelta
 # import streamlit library (open source library for specfic to data science to quickly build an application front end for the data with minimal python code)
 import streamlit as st
-# add extension lib for streamlit to add a options menu
-from streamlit_option_menu import option_menu
 # import yfinance library (used to retrieve financial data from yahoo finance)
 import yfinance as yf
 # import live pricing from yahoo finance
@@ -36,30 +34,16 @@ import pandas as pd
 
 
 
-# //////////////////////////////////////////// SECTION A: Configure Layout for our App ////////////////////////////////////////////////////////////
+# ////////////////////////////////////////////////// Configure App Layout /////////////////////////////////////////////////////////////////////////
 
 
-# (0.1): Set Layout of App, Provide App Version and Provide Title
-st.set_page_config(layout='wide', initial_sidebar_state='expanded')  # sets layout to wide; has sidebar expanded at start
-st.sidebar.markdown("<div align='center'>App Version: 1.2 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+# Set Layout of App, Provide App Version and Provide Title
+st.set_page_config(layout='wide')  # sets layout to wide
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
-# (0.2): Add a Nav Bar using Streamlit-Option-Menu library
 
-# Create variable for the container:
-nav_bar = st.container()
-
-# Within the "navbar" container, add an option menu using Streamlit-Option-Menu library as a navbar:
-with nav_bar:
-    nav_bar_options = option_menu(
-        menu_title=None,  # remove menu title
-        options=["Home", "Stock Grades"],  # option names on the menu
-        icons=["house", "pencil-square"],  # uses bootstrap icons
-        default_index=0,  # sets the first page (Home) as the default
-        orientation="horizontal",  # sets the option menu as
-    )
-
-# //////////////////////////////////////////// SECTION A: Configure Layout for our App ////////////////////////////////////////////////////////////
+# ////////////////////////////////////////////////// Configure App Layout /////////////////////////////////////////////////////////////////////////
 
 
 
@@ -79,7 +63,8 @@ with nav_bar:
 
 
 
-# ////////////////////////////////////////// Section B: Pull in our data and set up datasets for use in app  ////////////////////////////////////////////////////////
+
+# /////////////////////////////////////////////  Pull in our data and set up datasets for use in app  ////////////////////////////////////////////////////////
 
 
 # --------------------------------------------------- Data: Set Time Parameters -----------------------------------------------------------------
@@ -343,11 +328,16 @@ forecasted_year_range = st.sidebar.slider("Choose a Forecast Range (Years):", 1,
 period = forecasted_year_range * 365 # stores full period of days in our year range. Will use this later in the app workflow
 future = trained_model.make_future_dataframe(periods=period) # Create a df that goes into the futre; make prediction on a dataframe with a column ds containing the dates for which a prediction is to be made
 forecast = trained_model.predict(future) # forecast future stock prices for our model. Will return predictions in forecast data
+
+# Reorder columns with yhat as the second column
+forecast = forecast[['ds', 'yhat'] + [col for col in forecast.columns if col not in ['ds', 'yhat']]]
+
 print(forecast)
+print(f"forecast year range {forecasted_year_range}")
 # ------------------------------------------------------ Data: Forecast Model (Forecasted Data) --------------------------------------------------------------------
 
 
-# ////////////////////////////////////////// Section B: Pull in our data and set up datasets for use in app  ////////////////////////////////////////////////////////
+# /////////////////////////////////////////////  Pull in our data and set up datasets for use in app  ////////////////////////////////////////////////////////
 
 
 
@@ -374,199 +364,6 @@ print(forecast)
 
 # Note: Ticker selector was already added in section B as it is being used as a filter for our data
 # Note: Company name added to sidebar already in section B
-
-
-
-
-
-
-# Write the Current Price & Company Name to Sidebar:
-if Current_Price is not None:
-    st.sidebar.write(f"{company_name} | ${Current_Price}")
-else:
-    st.sidebar.write("")
-
-
-
-
-
-
-
-
-
-
-
-# ----------------------------------------------------- Sidebar: Add KPISs on Change %'s -----------------------------------------------------------
-
-# Add KPI for forecasted price change in 1 year from today:
-
-# Get forecast data from only this month
-print("\n f_cm: data on today's month YOY (trend = price at date):")
-f_cm = forecast[forecast['ds'].dt.month == Current_Month] # filters stock_data df to this month throughout all years; using Current Month variable from above
-print(f_cm)
-
-# Get forecast data from only this day; Note: Need to get the lastest market date since that will be the last available stock pricing if we are unable to use the market price (on days when mkt close):
-# Get the last row of the DataFrame
-latest_mkt_date = f_cm.iloc[-1]
-
-# Get the date from the last row
-latest_mkt_date = latest_mkt_date['ds'].date() # get full date
-latest_mktdate_day = latest_mkt_date.day # get just the day (#) of the latest mkt date recorded
-print(f" Latest Mkt Date {latest_mkt_date}")
-print(f" Latest Mkt Date {latest_mktdate_day}")
-
-print("\n f_cd: data on today's date YOY (trend = price at date):")
-f_cd = f_cm[f_cm['ds'].dt.day == latest_mktdate_day] # filters stock_data df to latest mkt date throughout all years
-print(f_cd)
-
-# Get only year after this year
-print("\n f_fy: Price Predicted in 1 year")
-today_year = datetime.now().year
-
-f_fy = f_cd[f_cd['ds'].dt.year > today_year] # filters stock_data df to this day 1 year ahead
-print(f_fy)
-
-# Get only today from forecasted data
-print("\n f_cy: Price of Stock Today")
-today_year = datetime.now().year
-f_cy = f_cd[f_cd['ds'].dt.year == today_year] # filters stock_data df to this day throughout all years
-print(f_cy[['ds', 'trend']])
-
-# Need to subtract "trend" from next year and this year:
-# Extract trend values
-print("Price Today", Current_Price)
-
-forecasted_price_next_year = f_fy['trend'].values[0]
-print("Price Forecasted in One Year", forecasted_price_next_year)
-
-# Get Forecasted 1 Year $ Difference & Percentage:
-trend_difference = forecasted_price_next_year - Current_Price
-trend_difference_number = round(trend_difference, 2)    # round the number to two decimal points
-trend_difference_percentage = (trend_difference/Current_Price)
-trend_difference_percentage = round(trend_difference_percentage * 100)
-
-# Print the result
-print("Difference in trend between next year and today (dollars):", trend_difference_number)
-print("Difference in trend between next year and today (% return):", trend_difference_percentage)
-
-# Define the CSS for positive and negative trends
-positive_icon = '<span style="color: green;">&#9650;</span>'
-negative_icon = '<span style="color: red;">&#9660;</span>'
-neutral_icon = '<span style="color: gray;">&#8212;</span>'
-
-# Create a trend icon for if the forecasted price is positive or negative
-if trend_difference_percentage > 0:
-    trend_icon = positive_icon  # Use positive trend icon
-elif trend_difference_percentage < 0:
-    trend_icon = negative_icon  # Use negative trend icon
-else:
-    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
-
-# Give title for 1 year forecasted price:
-st.sidebar.subheader("1 Year Price Forecast:")
-
-# Get Forecasted 1 Year Price:
-one_yr_forecasted_price = Current_Price + trend_difference_number
-print(f"One Year Forecasted Price: {one_yr_forecasted_price}")
-
-# Forecasted Price Difference in 1 year ($ Difference + Current Price & % Difference Concatenated)
-Yr_Price_Forecast = ("$" + str(round(one_yr_forecasted_price, 2)) + " | " + str(trend_difference_percentage) + "% " + trend_icon)
-
-# Write 1 Year Forecast Diff to sidebar
-if Yr_Price_Forecast is not None:
-    # Write the value to the app for today in KPI format if the data is available
-    st.sidebar.markdown(Yr_Price_Forecast, unsafe_allow_html=True)
-else:
-    st.warning(f"1 Year Forecast: Data Not Available")
-
-# Add KPI for YOY change in price from last year to this year from yesterday:
-
-# We already have a variable for the price today, now we must create a variable to get the price a year ago from yesterday:
-print("\n p_ly: Price of Stock a Year Ago Today")
-today_last_year = today_year-1
-p_ly = f_cd[f_cd['ds'].dt.year == today_last_year] # filters stock_data df to this day throughout all years
-print(p_ly[['ds', 'trend']])
-
-price_year_ago = p_ly['trend'].values[0] #values[0] grabs the first value
-
-# Get change # & percentage:
-print("YOY Price Change")
-print(f"Current Price: {Current_Price}")
-print(f"Price Year Ago: {price_year_ago}")
-YOY_difference = Current_Price - price_year_ago
-YOY_difference_number = round(YOY_difference, 2)    # round the number to two decimal points
-print(f"YOY Diff: {YOY_difference_number}")
-YOY_difference_percentage = (YOY_difference/price_year_ago)
-YOY_difference_percentage = round(YOY_difference_percentage * 100)
-print(f"YOY Diff: {YOY_difference_percentage}%")
-
-# Create a trend icon for if the YOY price is positive or negative:
-if YOY_difference_percentage > 0:
-    trend_icon = positive_icon  # Use positive trend icon
-elif YOY_difference_percentage < 0:
-    trend_icon = negative_icon  # Use negative trend icon
-else:
-    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
-
-# Give title for YOY trend metric
-st.sidebar.subheader("YOY Price Change:")
-
-# YOY Price Difference in 1 year ($ & % Difference Concatenated)
-YOY_Price_Change = ("$" + str(YOY_difference_number) + " | " + str(YOY_difference_percentage) + "% " + trend_icon)
-
-# Write 1 Year Forecast Diff to sidebar
-if YOY_Price_Change is not None:
-    # Write the value to the app for today in KPI format if the data is available
-    st.sidebar.markdown(YOY_Price_Change, unsafe_allow_html=True)
-else:
-    st.warning(f"YOY Price Change: Data Not Available")
-
-# Add KPI for Avg YOY price change over last 10 years from yesterday:
-
-# Ensure DataFrame is sorted by date
-Price_L10yrs = yearly_data.sort_values(by='Date')
-
-# Extract year from the date
-Price_L10yrs['Year'] = pd.to_datetime(Price_L10yrs['Date']).dt.year
-
-# Group data by year and calculate average closing price for each year
-yearly_avg_close_price = Price_L10yrs.groupby('Year')['Close'].mean()
-
-# Calculate year-over-year percentage change in average closing price
-yoy_avg_close_price_change_by_year = yearly_avg_close_price.pct_change() * 100
-yoy_avg_close_price_change = round(yoy_avg_close_price_change_by_year.mean(),2)
-
-# Print the result
-print("Year-over-Year Average Closing Price Change by Year:")
-print(yoy_avg_close_price_change_by_year)
-print("Year-over-Year Average Closing Price Change:")
-print(f"{yoy_avg_close_price_change}%")
-
-# Create a trend icon for if the YOY price is positive or negative:
-if yoy_avg_close_price_change > 0:
-    trend_icon = positive_icon  # Use positive trend icon
-elif yoy_avg_close_price_change < 0:
-    trend_icon = negative_icon  # Use negative trend icon
-else:
-    trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
-
-# Write avg price change % over last 10 yrs to sidebar
-st.sidebar.subheader("AVG YOY Price Change (Last 10 Yrs):")
-st.sidebar.markdown(str(yoy_avg_close_price_change) + "% " + trend_icon, unsafe_allow_html=True)
-
-
-# ----------------------------------------------------- Sidebar: Add KPISs on Change %'s -----------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
 
 # ------------------------------------------- Sidebar: Add Dropdowns containing notes on metrics -----------------------------------------------
 
@@ -626,223 +423,440 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
 
 # ///////////////////////////////////////////////////////////// Home Page //////////////////////////////////////////////////////////////////////////
 
+# (1.1): Show stock current stock details
+NA = "no data available for this stock"  # assign variable so can use in elseif statements when there is no data
+
+# Add Company Name:
+# Create a container for the company name:
+cn_c = st.container()
+# Check if data is available for the field:
+with cn_c:
+    if company_name.strip():  # if the field is not missing (use strip() for strings instead of .empty since it is not an object in the df in this situation)
+        # Write the value to the app for today in KPI format if the data is available
+        # Custom CSS for styling the kpis below with a translucent grey border
+        st.markdown(
+            f"""
+                <div style="display: flex; justify-content: center; align-items: center; padding: 20px;">
+                    <h3 style="font-size: 32px; margin: 0;">{company_name}</h3>
+                </div>
+                """,
+            unsafe_allow_html=True
+        )
+    else:
+        # Write the data is not available for the field if missing:
+        st.warning("Company Name: Not Available")
+
+# ------------------------------------------------------ Home Page: KPISs -------------------------------------------------------------------
+
+# Create a container for our KPIs:
+kpi_c = st.container()
+
+# Define columns for the KPIs
+kpi_col1, kpi_col2, kpi_col3, kpi_col4 = kpi_c.columns(4)
+
+# Define the CSS for positive and negative trends
+positive_icon = '<span style="color: green;">&#9650;</span>'
+negative_icon = '<span style="color: red;">&#9660;</span>'
+neutral_icon = '<span style="color: gray;">&#8212;</span>'
+
+# --------------------------------------------------- Add KPI for Current Price --------------------------------------------------------------
+with kpi_col1:
+    kpi_col1 = st.container(border=True)
+    with kpi_col1:
+        # Give title for 1 year forecasted price:
+        kpi_col1.write("Current Stock Price:")
+
+        # Forecasted Price Difference in 1 year ($ Difference + Current Price & % Difference Concatenated)
+        Current_Price_kpi = ("$" + str(round(Current_Price, 2)))
+
+        # Write 1 Year Forecast Diff to sidebar
+        if Current_Price_kpi is not None:
+            # Write the value to the app for today in KPI format if the data is available
+            kpi_col1.markdown(Current_Price_kpi, unsafe_allow_html=True)
+        else:
+            kpi_col1.warning(f"Current Price: Data Not Available")
+# --------------------------------------------------- Add KPI for Current Price --------------------------------------------------------------
+
+# ------------------------- Add KPI for YOY change in price from last year to this year from yesterday ---------------------------------------
+with kpi_col2:
+    kpi_col2 = st.container(border=True)
+    with kpi_col2:
+        # Get the index of the last row (current year)
+        previous_year_index = yearly_data.index[-1]
+
+        # Retrieve the 'Close' price of the previous year
+        price_year_ago = yearly_data.loc[previous_year_index, 'Close']
+
+        # Get change # & percentage:
+        print("YOY Price Change")
+        print(f"Current Price: {Current_Price}")
+        print(f"Price Year Ago: {price_year_ago}")
+        YOY_difference = Current_Price - price_year_ago
+        YOY_difference_number = round(YOY_difference, 2)    # round the number to two decimal points
+        print(f"YOY Diff: {YOY_difference_number}")
+        YOY_difference_percentage = (YOY_difference/price_year_ago)
+        YOY_difference_percentage = round(YOY_difference_percentage * 100)
+        print(f"YOY Diff: {YOY_difference_percentage}%")
+
+        # Create a trend icon for if the YOY price is positive or negative:
+        if YOY_difference_percentage > 0:
+            trend_icon = positive_icon  # Use positive trend icon
+        elif YOY_difference_percentage < 0:
+            trend_icon = negative_icon  # Use negative trend icon
+        else:
+            trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
+
+        # Give title for YOY trend metric
+        kpi_col2.write("YOY Price Change:")
+
+        # YOY Price Difference in 1 year ($ & % Difference Concatenated)
+        YOY_Price_Change = ("$" + str(YOY_difference_number) + " | " + str(YOY_difference_percentage) + "% " + trend_icon)
+
+        # Write 1 Year Forecast Diff to Home Page
+        if YOY_Price_Change is not None:
+            # Write the value to the app for today in KPI format if the data is available
+            kpi_col2.markdown(YOY_Price_Change, unsafe_allow_html=True)
+        else:
+            kpi_col2.warning(f"YOY Price Change: Data Not Available")
+# ------------------------- Add KPI for YOY change in price from last year to this year from yesterday ---------------------------------------
+
+# ------------------------------ Add KPI for Avg YOY price change over last 10 years from yesterday -----------------------------------------
+with kpi_col3:
+    kpi_col3 = st.container(border=True)
+    with kpi_col3:
+        # Extract year from the date
+        yearly_data['Year'] = pd.to_datetime(yearly_data['Date']).dt.year
+
+        # Group data by year and calculate average closing price for each year
+        yearly_avg_close_price = yearly_data.groupby('Year')['Close'].mean()
+
+        # Get the avg dollar amount change over the last 10 years available:
+        # Print the number of total rows to get the number of years:
+        total_rows = yearly_data.shape[0]
+        # Calculate the dollar amount.
+        avg_price_chg_dollar_amt = round(yearly_avg_close_price.mean() / (total_rows), 2)
+
+        # Calculate year-over-year percentage change in average closing price
+        yoy_avg_close_price_change_by_year = yearly_avg_close_price.pct_change() * 100
+        yoy_avg_close_price_change = round(yoy_avg_close_price_change_by_year.mean(),2)
+
+        # Print the result
+        print("Year-over-Year Average Closing Price Change by Year:")
+        print(yoy_avg_close_price_change_by_year)
+        print("Year-over-Year Average Closing Price Change:")
+        print(f"{yoy_avg_close_price_change}%")
+
+        # Create a trend icon for if the YOY price is positive or negative:
+        if yoy_avg_close_price_change > 0:
+            trend_icon = positive_icon  # Use positive trend icon
+        elif yoy_avg_close_price_change < 0:
+            trend_icon = negative_icon  # Use negative trend icon
+        else:
+            trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
+
+        # Write avg price change % over last 10 yrs to sidebar
+        kpi_col3.write("AVG YOY Price Change (Last 10 Yrs):")
+        yoy_avg_close_price_change = ("$" + str(avg_price_chg_dollar_amt) + " | " + str(yoy_avg_close_price_change) + "% " + trend_icon)
+
+        # Write to Home Page
+        if yoy_avg_close_price_change is not None:
+            # Write the value to the app for today in KPI format if the data is available
+            kpi_col3.markdown(yoy_avg_close_price_change, unsafe_allow_html=True)
+        else:
+            kpi_col3.warning(f"AVG YOY Price Change (Last 10 Yrs): Data Not Available")
+# ------------------------------ Add KPI for Avg YOY price change over last 10 years from yesterday -----------------------------------------
+
+# -----------------------------------  Add KPI for Forecasted Price Based on Forecast Slider ------------------------------------------------
+with kpi_col4:
+    kpi_col4 = st.container(border=True)
+    with kpi_col4:
+        # chooses the trend price at the forecasted year dynamically with the sidebar
+        chosen_forecasted_price = forecast['yhat'].iloc[-1]  # forecast['yhat'].iloc[-1] retrieves the forecasted value
+        print("Price Forecasted in One Year", chosen_forecasted_price)
+
+        # Get Forecasted 1 Year $ Difference & Percentage:
+        trend_difference = chosen_forecasted_price - Current_Price
+        trend_difference_number = round(trend_difference, 2)    # round the number to two decimal points
+        trend_difference_percentage = (trend_difference/Current_Price)
+        trend_difference_percentage = round(trend_difference_percentage * 100)
+
+        # Print the result
+        print("Difference in trend between next year and today (dollars):", trend_difference_number)
+        print("Difference in trend between next year and today (% return):", trend_difference_percentage)
+
+        # Create a trend icon for if the forecasted price is positive or negative
+        if trend_difference_percentage > 0:
+            trend_icon = positive_icon  # Use positive trend icon
+        elif trend_difference_percentage < 0:
+            trend_icon = negative_icon  # Use negative trend icon
+        else:
+            trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
+
+        # Give title for 1 year forecasted price:
+        chosen_forecasted_year = str(int(Current_Year) + int(forecasted_year_range))
+        kpi_col4.write(f" {chosen_forecasted_year} Price Forecast:")
+
+        # Forecasted Price Difference in 1 year ($ Difference + Current Price & % Difference Concatenated)
+        chosen_forecasted_price_kpi = ("$" + str(round(chosen_forecasted_price, 2)) + " | " + str(trend_difference_percentage) + "% " + trend_icon)
+
+        # Write 1 Year Forecast Diff to sidebar
+        if chosen_forecasted_price_kpi is not None:
+            # Write the value to the app for today in KPI format if the data is available
+            kpi_col4.markdown(chosen_forecasted_price_kpi, unsafe_allow_html=True)
+        else:
+            kpi_col4.warning(f"1 Year Forecast: Data Not Available")
+# -----------------------------------  Add KPI for Forecasted Price Based on Forecast Slider ------------------------------------------------
+
+# ------------------------------------------------------ Home Page: KPISs -------------------------------------------------------------------
+
+
+
+
 
 
 # --------------------------------------------- Home Page: Historical/Current Data Visuals --------------------------------------------------------
 
-# assign this section to show in app when the "Home" Icon is selected in the Nav Bar
-if nav_bar_options == "Home":
+# Create a tab list to navigate to different sections on our home page:
+home_tab1, home_tab2, home_tab3 = st.tabs(["Current/Historical Data", "Forecasted Data", "Stock Grades"])
 
-    # (1.1): Show stock current stock details
-    NA = "no data available for this stock"  # assign variable so can use in elseif statements when there is no data
+with home_tab1:
+    # create variable for a container to put our stock detail section in:
+    sh_c = st.container()  # add a fixed height of 800 px and add border to container
 
-    # Add Company Name:
-    # Create a container for the company name so we can add a border around it:
-    cn_c = st.container(border=True)
-    # Check if data is available for the field:
-    with cn_c:
-        if company_name.strip():  # if the field is not missing (use strip() for strings instead of .empty since it is not an object in the df in this situation)
-            # Write the value to the app for today in KPI format if the data is available
-            # Custom CSS for styling the kpis below with a translucent grey border
-            st.markdown(f"<h3 style='text-align: center;'>{company_name}</h3>", unsafe_allow_html=True)
-        else:
-            # Write the data is not available for the field if missing:
-            st.warning(f"Company Name: Not Available")
+    # define columns for the stock_details container (sd_c)
+    sh_col1, sh_col2 = sh_c.columns([4, 6])  # Use ratios to make control area width
 
-    # Create a tab for our historical/current data and one for our forecasted data for the ticker selected
-    home_tab1, home_tab2 = st.tabs(["Current/Historical Data", "Forecasted Data"])
+    # write container to app with columns for our stock current details and history data:
+    with sh_c:
 
-    with home_tab1:
-        # create variable for a container to put our stock detail section in:
-        sh_c = st.container(height = 700, border=True)  # add a fixed height of 800 px and add border to container
+        # Within sh_col1, create two columns:
+        with sh_col1:
+                sh_col1.write('Stock Metrics:')
+                sh_col1 = st.container(border=True, height=489)
+                with sh_col1:
+                    sh_col1_1, sh_col1_2 = sh_col1.columns(2)
 
-        # define columns for the stock_details container (sd_c)
-        sh_col1, sh_col2 = sh_c.columns(2)
+                    # run if statement to check there is data available today first:
+                    if not stock_data.empty:
 
-        # write container to app with columns for our stock current details and history data:
-        with sh_c:
+                        # Create a variable for Open Price & extract the data for today if available:
+                        today_open = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Open']
+                        # Check if data is available for the field today
+                        if not today_open.empty:
+                            today_open = today_open.iloc[0]
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Today's Open Price:", value="$" + str(round(today_open, 2))) # round # to 2 decimal points and make a string
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Today's Open Price: {NA}")
 
-            # Within sh_col1, create two columns:
-            with sh_col1:
-                sh_col1_1, sh_col1_2 = sh_col1.columns(2)
 
-                # run if statement to check there is data available today first:
-                if not stock_data.empty:
+                        # Add Latest Close Price:
+                        # Note: we already set a var for latest close price in the load data section of the app
+                        if last_close_price is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label=f"Last Close Price (as of {last_close_date}):", value="$" + str(round(last_close_price, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"Last Close Price: {NA}")
 
-                    # Create a variable for Open Price & extract the data for today if available:
-                    today_open = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Open']
-                    # Check if data is available for the field today
-                    if not today_open.empty:
-                        today_open = today_open.iloc[0]
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="Today's Open Price:", value="$" + str(round(today_open, 2))) # round # to 2 decimal points and make a string
-                    else:
+
+                        # Create a variable for Trade Volume & extract the data for today if available:
+                        today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
+                        # Check if data is available for the field today and format with commas
+                        if not today_vol.empty:
+                            today_vol = today_vol.iloc[0]
+                            # Format trade volume number with commas for thousands separator
+                            today_vol = "{:,.2f}".format(today_vol)
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label="Today's Trade Volume:", value=str(today_vol))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"Today's Trade Volume: {NA}")
+
+
+                        # Create a variable for PE ratio & extract the data for today if available:
+                        today_pe = pe_ratio
+                        # Check if data is available for the field today
+                        if today_pe is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="PE:", value=str(round(today_pe, 2)))
+                            print(f"PE Ratio today: {str(round(today_pe, 2))}")
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"PE: {NA}")
+                            print(f"PE: {NA}")
+
+                        # Create a variable for PEG ratio & extract the data for today if available:
+                        today_peg = peg_ratio
+                        # Check if data is available for the field today
+                        if today_peg is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="PEG:", value=today_peg)
+                            print(f"PEG Ratio today: {str(round(today_peg, 2))}")
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"PEG: {NA}")
+                            print(f"PEG: {NA}")
+
+                        # Create a variable for Price-to-Book ratio & extract the data for today if available:
+                        today_PB_ratio = price_to_book
+                        # Check if data is available for the field today
+                        if today_PB_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Price-to-Book:", value=str(round(today_PB_ratio, 2)))
+                        else:
                         # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"Today's Open Price: {NA}")
+                            sh_col1_1.warning(f"Price-to-Book: {NA}")
 
 
-                    # Add Latest Close Price:
-                    # Note: we already set a var for latest close price in the load data section of the app
-                    if last_close_price is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label=f"Last Close Price (as of {last_close_date}):", value="$" + str(round(last_close_price, 2)))
+                        # Create a variable for Debt-to-Equity ratio & extract the data for today if available:
+                        today_DE_ratio = debt_to_equity
+                        # Check if data is available for the field today
+                        if today_DE_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Debt-to-Equity: {NA}")
+
+
+                        # Create a variable for Dividend Yield ratio & extract the data for today if available:
+                        today_DY_ratio = dividend_yield
+                        # Check if data is available for the field today
+                        if today_DY_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio, 2)) + "%")
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Dividend Yield: {NA}")
+
+
+                        # Create a variable for Price-to-Sales ratio & extract the data for today if available:
+                        today_PS_ratio = price_to_sales
+                        # Check if data is available for the field today
+                        if today_PS_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label="Price-to-Sales:", value=str(round(today_PS_ratio, 2)))
+                        else:
+                            sh_col1_2.warning(f"Price-to-Sales: {NA}")
+
+                        # Create a variable for ROE ratio & extract the data for today if available:
+                        today_ROE_ratio = roe
+                        # Check if data is available for the field today
+                        if today_ROE_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label="ROE:", value=str(round(today_ROE_ratio, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"ROE Ratio: {NA}")
+
+
+                        # Create a variable for Current Ratio & extract the data for today if available:
+                        today_CR_ratio = current_ratio
+                        # Check if data is available for the field today
+                        if today_CR_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label="Current Ratio:", value=str(round(today_CR_ratio, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"Current Ratio: {NA}")
+
+
+                        # Create a variable for Quick Ratio & extract the data for today if available:
+                        today_QR_ratio = quick_ratio
+                        # Check if data is available for the field today
+                        if today_QR_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label="Quick Ratio:", value=str(round(today_QR_ratio, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"Quick Ratio: {NA}")
+
+
+                        # Create a variable for Quick Ratio & extract the data for today if available:
+                        # Check if data is available for the field today
+                        if sector is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1.metric(label="Sector:", value=str(sector))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1.warning(f"Sector: {NA}")
+
+
+                        # Create a variable for Quick Ratio & extract the data for today if available:
+                        # Check if data is available for the field today
+                        if industry is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1.metric(label="Industry:", value=str(industry))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1.warning(f"Industry: {NA}")
+
+
+                    # if there is no data available at all for today, print no data available
                     else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_2.warning(f"Last Close Price: {NA}")
+                        st.warning("Stock data for this ticker is missing.")
 
+        with sh_col2:
+            # Add Title
+            Price_History_Tbl_Title = "Price History (Limit Last 10 Years):"
+            sh_col2.write(Price_History_Tbl_Title)
 
-                    # Create a variable for Trade Volume & extract the data for today if available:
-                    today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
-                    # Check if data is available for the field today and format with commas
-                    if not today_vol.empty:
-                        today_vol = today_vol.iloc[0]
-                        # Format trade volume number with commas for thousands separator
-                        today_vol = "{:,.2f}".format(today_vol)
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label="Today's Trade Volume:", value=str(today_vol))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_2.warning(f"Today's Trade Volume: {NA}")
-
-
-                    # Create a variable for PE ratio & extract the data for today if available:
-                    today_pe = pe_ratio
-                    # Check if data is available for the field today
-                    if today_pe is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="PE:", value=str(round(today_pe, 2)))
-                        print(f"PE Ratio today: {str(round(today_pe, 2))}")
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"PE: {NA}")
-                        print(f"PE: {NA}")
-
-                    # Create a variable for PEG ratio & extract the data for today if available:
-                    today_peg = peg_ratio
-                    # Check if data is available for the field today
-                    if today_peg is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="PEG:", value=today_peg)
-                        print(f"PEG Ratio today: {str(round(today_peg, 2))}")
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"PEG: {NA}")
-                        print(f"PEG: {NA}")
-
-                    # Create a variable for Price-to-Book ratio & extract the data for today if available:
-                    today_PB_ratio = price_to_book
-                    # Check if data is available for the field today
-                    if today_PB_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="Price-to-Book:", value=str(round(today_PB_ratio, 2)))
-                    else:
-                    # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"Price-to-Book: {NA}")
-
-
-                    # Create a variable for Debt-to-Equity ratio & extract the data for today if available:
-                    today_DE_ratio = debt_to_equity
-                    # Check if data is available for the field today
-                    if today_DE_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio, 2)))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"Debt-to-Equity: {NA}")
-
-
-                    # Create a variable for Dividend Yield ratio & extract the data for today if available:
-                    today_DY_ratio = dividend_yield
-                    # Check if data is available for the field today
-                    if today_DY_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio, 2)) + "%")
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_1.warning(f"Dividend Yield: {NA}")
-
-
-                    # Create a variable for Price-to-Sales ratio & extract the data for today if available:
-                    today_PS_ratio = price_to_sales
-                    # Check if data is available for the field today
-                    if today_PS_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label="Price-to-Sales:", value=str(round(today_PS_ratio, 2)))
-                    else:
-                        sh_col1_2.warning(f"Price-to-Sales: {NA}")
-
-                    # Create a variable for ROE ratio & extract the data for today if available:
-                    today_ROE_ratio = roe
-                    # Check if data is available for the field today
-                    if today_ROE_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label="ROE:", value=str(round(today_ROE_ratio, 2)))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_2.warning(f"ROE Ratio: {NA}")
-
-
-                    # Create a variable for Current Ratio & extract the data for today if available:
-                    today_CR_ratio = current_ratio
-                    # Check if data is available for the field today
-                    if today_CR_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label="Current Ratio:", value=str(round(today_CR_ratio, 2)))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_2.warning(f"Current Ratio: {NA}")
-
-
-                    # Create a variable for Quick Ratio & extract the data for today if available:
-                    today_QR_ratio = quick_ratio
-                    # Check if data is available for the field today
-                    if today_QR_ratio is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1_2.metric(label="Quick Ratio:", value=str(round(today_QR_ratio, 2)))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1_2.warning(f"Quick Ratio: {NA}")
-
-
-                    # Create a variable for Quick Ratio & extract the data for today if available:
-                    # Check if data is available for the field today
-                    if sector is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1.metric(label="Sector:", value=str(sector))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1.warning(f"Sector: {NA}")
-
-
-                    # Create a variable for Quick Ratio & extract the data for today if available:
-                    # Check if data is available for the field today
-                    if industry is not None:
-                        # Write the value to the app for today in KPI format if the data is available
-                        sh_col1.metric(label="Industry:", value=str(industry))
-                    else:
-                        # Write the data is not available for the field if missing
-                        sh_col1.warning(f"Industry: {NA}")
-
-
-                # if there is no data available at all for today, print no data available
-                else:
-                    st.warning("Stock data for this ticker is missing.")
-
-            with sh_col2:
-                # (1.2): Create a Time Series Visual for our Data in column 2 of the sh container:
-                Price_History_Tbl_Title = "Price History (Last 10 Years):"
-                sh_col2.write(Price_History_Tbl_Title)
+            # (1.2): Create a Time Series Visual for our Data in column 2 of the sh container:
+            with st.container(border=True):
                 def plot_raw_data(): # define a function for our plotted data (fig stands for figure)
                     fig = go.Figure() # create a plotly graph object.
-                    fig.add_trace(go.Scatter(x=stock_data['Date'], y=stock_data['Close'], name='Price', line=dict(color='#0072B2')))
-                    fig.layout.update(xaxis_rangeslider_visible=True) # add axis slider to graph to adjust time of visual
-                    sh_col2.plotly_chart(fig, use_container_width=True) # writes the graph to app and fixes width to the container width
+                    fig.add_trace(go.Scatter(
+                        x=stock_data['Date'],
+                        y=stock_data['Close'],
+                        name='Price',
+                        fill='tozeroy',
+                        line=dict(color='#0072B2')
+                    ))
+                    fig.layout.update(xaxis_rangeslider_visible=True,
+                                      template='plotly_white')
+                    st.plotly_chart(fig, use_container_width=True) # writes the graph to app and fixes width to the container width
                 plot_raw_data()
 
-                # (1.3): Add Yearly Data Table to column 2 of our sh container:
-                # write a table of the past data within the last 10 years on this date
-                sh_col2.write("Ticker Price History (Last 10 Years):") # provide title for raw data visual
-                sh_col2.dataframe(yearly_data.sort_values(by='Date', ascending=False), hide_index=True)
+        # Provide title for raw data visual
+        sh_c.write("Ticker Price History (Last 10 Years):")
+
+        # (1.3): Add Yearly Data Table to column 2 of our sh container:
+        with sh_c.container(border=True):
+
+            # Apply HTML formatting for "Trend" column
+            def highlight_trend(val):
+                if val == '↑':
+                    color = 'green'
+                elif val == '↓':
+                    color = 'red'
+                elif val == '■':
+                    color = 'grey'
+                else:
+                    color = 'black'
+                return f'color: {color}'
+
+            # Drop the 'Year' column
+            yearly_data = yearly_data.drop(columns=['Year'])
+
+            # order yearly_data by date
+            yearly_data = yearly_data.sort_values(by='Date', ascending=False)
+
+            # Convert 'Date' column to datetime format
+            yearly_data['Date'] = pd.to_datetime(yearly_data['Date'])
+
+            # Format 'Date' column to remove the time component
+            yearly_data['Date'] = yearly_data['Date'].dt.strftime('%Y-%m-%d')
+
+            # Apply the style function to the "Trend" column
+            styled_df = yearly_data.style.map(highlight_trend, subset=['Trend'])
+
+            # Assign again as yearly_df
+            yearly_data = styled_df
+
+            # write a table of the past data within the last 10 years on this date
+            st.dataframe(yearly_data, hide_index=True, use_container_width=True)
 
 # --------------------------------------------- Home Page: Historical/Current Data Visuals --------------------------------------------------------
 
@@ -868,35 +882,60 @@ if nav_bar_options == "Home":
 
 # --------------------------------------------- Home Page: Add Stock Price Forecasting Visuals --------------------------------------------------------
 
-    # Add forecasted data visuals to our second tab
-    with home_tab2:
+# Add forecasted data visuals to our second tab
+with home_tab2:
 
-        # create container for forecast section and columns:
-        fs_c = st.container(height = 700, border=True) # puts the data below in a container with a border
-        fs_col1, fs_col2 = fs_c.columns(2)  # put 2 columns in our fs_c container
+    # Create forecast container for our forecast section and columns:
+    fs_c = st.container()
 
-        # Provide title for column 1 & 2 of forecast container:
-        with fs_c:
-            fs_col1.write("Price Forecast:")
-            fs_col2.write("Forecast Components:")
+    # Add Visuals into fs_c container:
+    with fs_c:
 
-        with fs_c:
+        # Create two columns for fs_c
+        fs_c_col1, fs_c_col2 = fs_c.columns([7, 3])  # Use ratios to make control area width
 
-            # PLot our forecasted future data in tabular format:
-            fs_col1.dataframe(forecast.tail(1), hide_index=True)
+        # Write Title for Forecast Graph in col1:
+        fs_c_col1.write("Forecast Graph:")
 
+        # Write Forecast Graph Container in col1:
+        fs_graph_c = fs_c_col1.container(border=True)
+        with fs_graph_c:
             # Plot the forecasted future data using the prophet model within a forecasted visual:
             fig1 = plot_plotly(trained_model, forecast) # plot data on visual (plotly needs the model and forecast to plot)
-            fs_col1.plotly_chart(fig1, use_container_width=True, use_container_height=True) # write the chart of the plotly figure (figure 1 = fig1) in app
+            fs_graph_c.plotly_chart(fig1, use_container_width=True) # write the chart of the plotly figure (figure 1 = fig1) in app
 
+        # Write Title for Forecasted Price Metric in col2:
+        fs_c_col2.write("Forecasted Price:")
+
+        # Write Metric for Forecasted Price in col2
+        fs_price_metric = fs_c_col2.container(border=True)
+        with fs_price_metric:
+            # Take variable from kpi 4 for metric
+            fs_price_metric.metric(f"Forecast Year: {chosen_forecasted_year}", f"${str(round(chosen_forecasted_price, 2))}", f"{trend_difference_percentage}%")
+
+
+        # Write Title for Forecast Components in col2:
+        fs_c_col2.write("Forecast Components:")
+
+        # Write Forecast Components Container in col2
+        fs_components_c = fs_c_col2.container(border=True, height=456)
+        with fs_components_c:
             # Plot the Prophet forecast components:
             fig2 = trained_model.plot_components(forecast) # write component visuals to label fig2.
-            fs_col2.pyplot(fig2) # write figure 2 to the app
-            fs_col2.write('Provided above are forecast components within the Prophet model regarding the (1) trend component, (2) seasonality component, and (3) Holiday Effects that describe different aspects of the time series data*') # add a text label for the forecasted components
+            fs_components_c.pyplot(fig2) # write figure 2 to the app
 
             # Notes:
             # By calling m.plot_components(forecast), we're instructing prophet to generate a plot showing the components of the forecast. These components include trends, seasonalities, and holiday effect
             # The result of m.plot_components(forecast) is a set of plots visualizing these components
+
+        # Write Title for Forecast Tail:
+        fs_c.write("Price Forecast Overview:")
+
+        # Write Forecast Overview Container:
+        fs_overview_c = fs_c.container(border=True)
+        with fs_overview_c:
+            # PLot our forecasted information in tabular format:
+            fs_overview_c.dataframe(forecast.tail(1), hide_index=True)
 
 
 # --------------------------------------------- Home Page: Add Stock Price Forecasting Visuals --------------------------------------------------------
@@ -926,10 +965,7 @@ if nav_bar_options == "Home":
 
 # ///////////////////////////////////////////////////////////// Stock Grader Page //////////////////////////////////////////////////////////////////////////
 
-
-
-
-if nav_bar_options == "Stock Grades":
+with home_tab3:
 
     # Title to Add the Model Build is in Progress:
     st.markdown("<h2 style='text-align: center;'>Model Build in Progress...</h2>", unsafe_allow_html=True)
@@ -980,7 +1016,6 @@ if nav_bar_options == "Stock Grades":
 
     # Display the animated spinner
     sg_c.markdown(cog_wheel_css + cog_html, unsafe_allow_html=True)
-
 
 
 
