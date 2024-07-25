@@ -86,6 +86,11 @@ Current_Year = datetime.now().year
 print("\n CURRENT Year:")
 print(Current_Year)
 
+# Calculate Previous Year #
+Last_Year = Current_Year - 1
+print("\n LAST Year:")
+print(Last_Year)
+
 # Get Current Month #
 Current_Month = datetime.now().month
 print("\n CURRENT MONTH:")
@@ -436,8 +441,8 @@ with cn_c:
         # Custom CSS for styling the kpis below with a translucent grey border
         st.markdown(
             f"""
-                <div style="display: flex; justify-content: center; align-items: center; padding: 20px;">
-                    <h3 style="font-size: 32px; margin: 0;">{company_name}</h3>
+                <div style="display: flex; justify-content: center; align-items: center;">
+                    <h1 style="font-size: 32px; margin: 0;">{company_name}</h1>
                 </div>
                 """,
             unsafe_allow_html=True
@@ -445,6 +450,9 @@ with cn_c:
     else:
         # Write the data is not available for the field if missing:
         st.warning("Company Name: Not Available")
+
+# Add a Line Seperator under the company name
+st.markdown("""---""")
 
 # ------------------------------------------------------ Home Page: KPISs -------------------------------------------------------------------
 
@@ -484,8 +492,13 @@ with kpi_col2:
         # Get the index of the last row (current year)
         previous_year_index = yearly_data.index[-1]
 
-        # Retrieve the 'Close' price of the previous year
-        price_year_ago = yearly_data.loc[previous_year_index, 'Close']
+        # Retrieve the 'Close' price of the previous year dynamically
+        try:
+            price_year_ago = yearly_data[yearly_data['Date'].dt.year == Last_Year]['Close'].iloc[0]
+        except IndexError:
+            # Handle case where if there is an index error (no data available for the previous year)
+            # it takes the current price instead
+            price_year_ago = yearly_data[yearly_data['Date'].dt.year == Current_Year]['Close'].iloc[0]
 
         # Get change # & percentage:
         print("YOY Price Change")
@@ -570,11 +583,11 @@ with kpi_col3:
 with kpi_col4:
     kpi_col4 = st.container(border=True)
     with kpi_col4:
-        # chooses the trend price at the forecasted year dynamically with the sidebar
+        # chooses the seasonal trend price (yhat) at the forecasted year dynamically with the sidebar
         chosen_forecasted_price = forecast['yhat'].iloc[-1]  # forecast['yhat'].iloc[-1] retrieves the forecasted value
-        print("Price Forecasted in One Year", chosen_forecasted_price)
+        print("Price Forecasted in Chosen Forecast Yr", chosen_forecasted_price)
 
-        # Get Forecasted 1 Year $ Difference & Percentage:
+        # Get Forecasted X Year $ Difference & Percentage:
         trend_difference = chosen_forecasted_price - Current_Price
         trend_difference_number = round(trend_difference, 2)    # round the number to two decimal points
         trend_difference_percentage = (trend_difference/Current_Price)
@@ -803,29 +816,29 @@ with home_tab1:
             Price_History_Tbl_Title = "Price History (Limit Last 10 Years):"
             sh_col2.write(Price_History_Tbl_Title)
 
-            # (1.2): Create a Time Series Visual for our Data in column 2 of the sh container:
+            # Create a Time Series Visual for our Data in column 2 of the sh container:
             with st.container(border=True):
-                def plot_raw_data(): # define a function for our plotted data (fig stands for figure)
-                    fig = go.Figure() # create a plotly graph object.
+                def plot_raw_data():  # define a function for our plotted data (fig stands for figure)
+                    fig = go.Figure()  # create a plotly graph object.
                     fig.add_trace(go.Scatter(
                         x=stock_data['Date'],
                         y=stock_data['Close'],
                         name='Price',
-                        fill='tozeroy',
+                        fill='tozeroy',  # adds color fill below trace
                         line=dict(color='#0072B2')
                     ))
                     fig.layout.update(xaxis_rangeslider_visible=True,
                                       template='plotly_white')
-                    st.plotly_chart(fig, use_container_width=True) # writes the graph to app and fixes width to the container width
+                    st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
                 plot_raw_data()
 
         # Provide title for raw data visual
         sh_c.write("Ticker Price History (Last 10 Years):")
 
-        # (1.3): Add Yearly Data Table to column 2 of our sh container:
+        # Add Yearly Data Table visual to column 2 of our sh container:
         with sh_c.container(border=True):
 
-            # Apply HTML formatting for "Trend" column
+            # Apply HTML formatting for "Price Trend" column to add as a column in the df
             def highlight_trend(val):
                 if val == '↑':
                     color = 'green'
@@ -849,7 +862,11 @@ with home_tab1:
             # Format 'Date' column to remove the time component
             yearly_data['Date'] = yearly_data['Date'].dt.strftime('%Y-%m-%d')
 
-            # Apply the style function to the "Trend" column
+            # Move the Trend column to the second column after 'Date'
+            yearly_data = yearly_data[['Trend', 'Date', 'Open', 'Close', 'Adj Close', 'High', 'Low', 'Volume']]
+            print(f"styled yearly data df {yearly_data}")
+
+            # Apply the style function above to the "Trend" column
             styled_df = yearly_data.style.map(highlight_trend, subset=['Trend'])
 
             # Assign again as yearly_df
@@ -900,18 +917,49 @@ with home_tab2:
         # Write Forecast Graph Container in col1:
         fs_graph_c = fs_c_col1.container(border=True)
         with fs_graph_c:
-            # Plot the forecasted future data using the prophet model within a forecasted visual:
-            fig1 = plot_plotly(trained_model, forecast) # plot data on visual (plotly needs the model and forecast to plot)
-            fs_graph_c.plotly_chart(fig1, use_container_width=True) # write the chart of the plotly figure (figure 1 = fig1) in app
+                # Plot the forecasted future data using the prophet model within a forecasted visual:
+                fig1 = plot_plotly(trained_model, forecast)  # plot visual (plotly needs the model and forecast to plot)
+
+                # Remove extra spacing at the Y-axis
+                fig1.update_layout(
+                    margin=dict(l=0, r=0, t=0, b=0),  # Adjust margin to remove any extra spacing in the container
+                    xaxis_title='Date',
+                    yaxis_title='Price'
+                    )
+
+                # Plot the Forecast graph
+                fs_graph_c.plotly_chart(fig1, use_container_width=True)
 
         # Write Title for Forecasted Price Metric in col2:
         fs_c_col2.write("Forecasted Price:")
 
-        # Write Metric for Forecasted Price in col2
-        fs_price_metric = fs_c_col2.container(border=True)
+        # Create a container for metrics in col2
+        fs_price_metric = fs_c_col2.container()
         with fs_price_metric:
-            # Take variable from kpi 4 for metric
-            fs_price_metric.metric(f"Forecast Year: {chosen_forecasted_year}", f"${str(round(chosen_forecasted_price, 2))}", f"{trend_difference_percentage}%")
+
+            # create columns for each metric in the fs_price_metric container
+            fs_price_metric_col1, fs_price_metric_col2 = fs_price_metric.columns([1, 1])
+
+            # Write metric 1 container
+            fs_price_metric1 = fs_price_metric_col1.container(border=True)
+            with fs_price_metric1:
+
+                # Recreate KPI 4 as streamlit metric
+                fs_price_metric1.metric(f"Forecast Year: {chosen_forecasted_year}", f"${str(round(chosen_forecasted_price, 2))}", f"{trend_difference_percentage}%")
+
+            # Write metric 2 container
+            fs_price_metric2 = fs_price_metric_col2.container(border=True)
+            with fs_price_metric2:
+
+                # Get the average YOY forecasted price change
+                yoy_avg_fr_price_change = round((int(chosen_forecasted_price) - int(Current_Price)) / (int(chosen_forecasted_year) - int(Current_Year)), 2)
+
+                # Get the Average Change %
+                yoy_avg_fr_price_change_pct = round((yoy_avg_fr_price_change / Current_Price) * 100, 0)
+
+                # Add a metric for avg forecast price change from current price YOY dynamically with sidebar
+                fs_price_metric2.metric(f"YOY Change Average:", f"${str(round(yoy_avg_fr_price_change, 2))}", f"{yoy_avg_fr_price_change_pct}%")
+
 
 
         # Write Title for Forecast Components in col2:
@@ -973,7 +1021,7 @@ with home_tab3:
     st.header("")
 
     # Container for Stock Grades Page:
-    sg_c = st.container(height = 500, border=False)
+    sg_c = st.container(height=500, border=False)
 
     # Add Animations for WIP:
     # CSS for cog wheel animation
