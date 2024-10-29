@@ -30,15 +30,15 @@ api.authenticate()
 
 # Download dataset with kaggle (API GitHub directions on how to use https://github.com/Kaggle/kaggle-api)
 dataset = 'nelgiriyewithana/top-spotify-songs-2023'
-kaggle.api.dataset_download_files(dataset, path='/Users/andrewjohnson/IdeaProjects/DataSciencePortfolio/Spotify_Proj')
+kaggle.api.dataset_download_files(dataset, path='./Spotify2023_Proj')
 
 # Unzip the file from the download zip file ['r' leaves the backslashes in the string]
-zipfile_name = '/Users/andrewjohnson/IdeaProjects/DataSciencePortfolio/Spotify_Proj/top-spotify-songs-2023.zip'
+zipfile_name = './top-spotify-songs-2023.zip'
 with zipfile.ZipFile(zipfile_name, 'r') as file:
     file.extractall()
 
 # Set path name for csvfile
-path = "/Users/andrewjohnson/IdeaProjects/DataSciencePortfolio/Spotify_Proj/spotify-2023.csv"
+path = "./spotify-2023.csv"
 
 # Read the csv file as a pandas df
 # The file being used is not encoded in UTF-8, which is needed to have the csv be encoded to UTF-8. It is encoded in ISO-8859-1, so we will need to change that
@@ -72,21 +72,24 @@ months_dictionary = {
     '12' : 'December'}
 # Change values to a string
 Spotify2023.released_month = Spotify2023.released_month.astype('str')
+
 # Map the month IDs to dictionary containing the month names
 Spotify2023.released_month = Spotify2023.released_month.map(months_dictionary)
 
 # View final dataset to check data cleansing done
-# Print(Spotify2023.to_string()) #view whole output
 print(Spotify2023.head(50).to_string()) #limit to only viewing 50 rows
 
 # When checking the dataset, I noticed there are some null values in the "key" column. Let's fill these as we will be doing analysis on most popular keys in our visual.
 # For our visual, we will only be using songs released in 2023; let's reduce the sample size to songs released in 2023
 Tracks_2023 = Spotify2023[Spotify2023['released_year'] == 2023]
+
 # Let's now isolate the null values in the "key" column to see which songs we will need to fill nulls
 Key_Nulls_2023 = Tracks_2023['key'].isnull()
 print(Tracks_2023[Key_Nulls_2023].to_string())
+
 # Print the count of rows to see count of tracks with a null key value
 print("Number of Track w/ a Null Value:", len(Tracks_2023[Key_Nulls_2023])) #len function counts the values
+
 # There are only 16 tracks released in 2023 that have a null key value. Considering the # of nulls is so low, the easiest method would be to fill the nulls manually. Let's do that in this next step:
 # Fill null values manually in the 'key' column for specified rows with different values
 Spotify2023.loc[12, 'key'] = 'Am'
@@ -105,8 +108,10 @@ Spotify2023.loc[373, 'key'] = 'C#'
 Spotify2023.loc[379, 'key'] = 'C#'
 Spotify2023.loc[381, 'key'] = 'C#'
 Spotify2023.loc[385, 'key'] = 'C#'
+
 # Let's check the nulls have now been filled by checking the song "flowers" was filled with 'Am' (row 12) and re-printing null count
 print(Spotify2023.at[12, 'key']) # checking song key was filled
+
 # Success: We can now write the df to excel for visualization
 
 # Write the final df to an excel sheet for visualization
@@ -150,31 +155,41 @@ Spotify2023_artists = Spotify2023_artists.drop(columns=[
 
 # Section 3: Check that the new df delimited and columns dropped properly.
 print(Spotify2023_artists.head(50).to_string()) # This limits to viewing only 50 rows of the df
+
 # To view the whole output, use: print(Spotify2023_artists.to_string())
 # Looks good. On to next step.
 
 # Section 4: Deduplicate Artists & Sum the Streams
+
 # First, let's check that 'streams' was brought in as an integer and not an object:
-    # Check if 'streams' is an integer:
+
+# Check if 'streams' is an integer:
 if Spotify2023_artists['streams'].dtype == 'int64':
     print("'streams' is an integer.")
 else:
     print("'streams' is not an integer.")
+
 # 'streams' is not an integer; Let's check if it came in as a string:
-    # Check if 'field_name' is a string
+
+# Check if 'field_name' is a string
 if Spotify2023_artists['streams'].dtype == 'object':
     print("'streams' is a string.")
 else:
     print("'streams' is not a string.")
+
 # Can also check using the below
 print(Spotify2023_artists['streams'].info())
+
 # Data Type came back as an object; Will need to change the dtype to an integer to run a sum function
     # Spotify2023_artists['streams'] = Spotify2023_artists['streams'].astype(int)
 # When running the above, we are getting an error that there are non-numerical values in the list; Let's remove these
+
 # Replace non-numeric values with NaN
 Spotify2023_artists['streams'] = pd.to_numeric(Spotify2023_artists['streams'], errors='coerce')
+
 # Drop rows with NaN values
 Spotify2023_artists = Spotify2023_artists.dropna()
+
 # Try again:
 Spotify2023_artists['streams'] = Spotify2023_artists['streams'].astype(int)
 
@@ -187,6 +202,7 @@ Spotify2023_artists.info()
 
 # Group by artists and sum up the streams
 Spotify2023_artists = Spotify2023_artists.groupby('artist_name(s)')['streams'].sum().reset_index()
+
 # Rank the artists by their total streams & add 'artist_rank' column
 Spotify2023_artists['artist_rank'] = Spotify2023_artists['streams'].rank(ascending=False).astype(int)
     #Notes:
@@ -223,4 +239,5 @@ with pd.ExcelWriter('Spotify2023_TableauProj.xlsx', engine='openpyxl', mode='a')
 
 # Write the DataFrame with exploded artists to a new tab in the Excel file
     Spotify2023_artists.to_excel(writer, sheet_name='Spotify2023_artists', index=False)
+
 # Note: The index=False parameter is used to indicate that you do not want to include the index column when writing the DataFrame to the output file.
