@@ -11,7 +11,6 @@ Buil in the Streamlit framweork using Python, HTML & CSS. Data pulled via yahoo 
 BI Portfolio:
   - Spotify 2023 Trend Analysis:
       Using a dataset pulled via Kaggle API, the project uses Python for data prep/manipulation and Tableau for data visualization.
-
   - Financial Product Compare:
       Simple Data Prep for Financial Product Compare viz in Tableau.
 
