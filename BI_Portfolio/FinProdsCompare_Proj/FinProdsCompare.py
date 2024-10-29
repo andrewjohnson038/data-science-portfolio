@@ -2,8 +2,8 @@ import pandas as pd
 
 # Define each financial product that will be compared
 data = {
-    'Product ID': [f'P{i}' for i in range(1, 11)],  # Unique ID for each product
-    'Financial Product': [
+    'ProductID': [f'P{i}' for i in range(1, 11)],  # Unique ID for each product
+    'Product Name': [
         'Individual Securities', 'Mutual Funds', 'ETFs',
         'Government Bonds', 'High Yield Savings Account',
         'Real Estate Investment Trusts (REITs)', 'Certificates of Deposit (CDs)',
@@ -33,8 +33,8 @@ score_columns = [
     'Historical Performance', 'Ease of Access',
     'Inflation Hedge']
 
-financial_df['Avg Score'] = financial_df[score_columns].mean(axis=1)  # axis = 1 informs to calc by row, not column
-financial_df['Avg Score'] = financial_df['Avg Score'].round(2)
+financial_df['Product Avg Score'] = financial_df[score_columns].mean(axis=1)  # axis = 1 informs to calc by row, not column
+financial_df['Product Avg Score'] = financial_df['Product Avg Score'].round(2)
 
 # Set display option to show all rows and columns (# Out if you want to just print a summary of the data set)
 pd.set_option('display.max_rows', None)  # None means no limit
@@ -43,8 +43,41 @@ pd.set_option('display.max_columns', None)  # None means no limit
 # Check Results
 print(financial_df)
 
+# Calculate average scores
+average_scores = financial_df.loc[:, 'Stability':'Inflation Hedge'].mean()
+
+# Convert the Series to a DataFrame
+metric_avg_df = average_scores.reset_index()
+
+# Rename the columns correctly
+metric_avg_df.columns = ['Metric', 'Average Score']
+
+# Check Results
+print(metric_avg_df)
+
+# Add a df where financial products df is transposed (need for radar chart in Tableau)
+melted_df = financial_df.melt(   # melt() needs a id_vars, var_name, & value_name argument
+    id_vars=['ProductID', 'Product Name'],  # columns that will not be melted; id variables
+                              var_name='Metric',  # new column that holds the var name (metric in this case)
+                              value_name='Score'  # holds the values of the melted var (score in this case)
+)  # Reshapes the DataFrame using the melt function
+
+# Give df meaningful name
+metric_scores_df = melted_df
+
+# Check Results
+print(metric_scores_df)
+
 # Write the DataFrame to an Excel file
 file_path = './financial_products.xlsx'
-financial_df.to_excel(file_path,
-                      index=False,  # indicates not to write the index #s to excel
-                      sheet_name='Financial Products')
+
+with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:  # 'a' for append excel sheet
+
+    # Write the financial products DataFrame to a sheet
+    financial_df.to_excel(writer, sheet_name='Financial Products', index=False)
+
+    # Write the metric average scores DataFrame to another new sheet
+    metric_avg_df.to_excel(writer, sheet_name='Metric Avg', index=False)
+
+    # Write the metric scores transposed DataFrame to another new sheet
+    metric_scores_df.to_excel(writer, sheet_name='Metric Scores', index=False)
