@@ -80,14 +80,14 @@ def gen_fake_customer_contact_data():
         'zip_code': fake.zipcode()
     }
 
-# Add in fake customer data with the Faker package
+# Add in fake sales team data with the Faker package
 def gen_fake_sales_team_data():
     return {
-        'team_name': fake.last_name()
-
+        'team_name': fake.last_name(),
+        'members': [fake.name() for _ in range(4)]  # Generate 4 team member names
     }
 
-# Add in fake customer data with the Faker package
+# Add in fake product data with the Faker package
 def gen_fake_product_data():
     product_adjectives = ["Wide", "Ultra", "Mega", "Pro", "Elite", "Max", "Sleek Ultra"]
     product_type = ["ePhone", "Pants", "Basketball", "Hat", "White T-Shirt", "Black E-pods", "Lulu Leggings"]
@@ -118,6 +118,13 @@ products_tbl = pd.concat([products_tbl, products_fake_df], axis=1)
 
 # Display the new customers_tbl DataFrame
 print(customers_tbl, salesteam_tbl, products_tbl)
+
+# need to unflatten team members in the sales table
+salesteam_tbl = salesteam_tbl.explode('members', ignore_index=True)
+
+# validate transformation
+print(salesteam_tbl)
+
 
 # Add tables as new tab in Excel sheet
 with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a') as writer:
