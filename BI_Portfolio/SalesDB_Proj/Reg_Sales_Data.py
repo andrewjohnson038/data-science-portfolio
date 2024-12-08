@@ -1,5 +1,6 @@
 import kagglehub
 import pandas as pd
+import numpy as np
 import os
 from faker import Faker
 import random
@@ -122,9 +123,39 @@ print(customers_tbl, salesteam_tbl, products_tbl)
 # need to unflatten team members in the sales table
 salesteam_tbl = salesteam_tbl.explode('members', ignore_index=True)
 
+# Add a unique ID to sales team members table for each member
+salesteam_tbl['_SalesTeamMemID'] = ['mem_' + str(i + 1) for i in range(len(salesteam_tbl))]
+
+    # i + 1 ensures the ID starts from mem_1, not mem_0
+    # range(len(df)) = Creates a sequence of row indices (0, 1, 2, ...) based on the table length.
+
+# Moving the new column to the first in the table
+salesteam_tbl = salesteam_tbl[['_SalesTeamMemID'] + [col for col in salesteam_tbl.columns if col != '_SalesTeamMemID']]
+
 # validate transformation
 print(salesteam_tbl)
 
+# check the data types of the tables
+print("Data Types (before):")
+print(salesteam_tbl.dtypes, customers_tbl.dtypes, products_tbl.dtypes, orders_tbl.dtypes)
+
+# Need to change the key IDs for each table from numeric to str for matching tables in Tableau
+columns_to_convert = ['_ProductID', '_CustomerID', '_SalesTeamID', '_StoreID']
+
+# List of DataFrames to loop through
+tables = [salesteam_tbl, products_tbl, customers_tbl, orders_tbl]
+
+# Loop through each DataFrame
+for table in tables:
+    # Loop through each column to convert
+    for col in columns_to_convert:
+        if col in table.columns:
+            # Convert the column to string
+            table[col] = table[col].astype(str)
+
+# check the data types of the tables again
+print("Data Types (after):")
+print(salesteam_tbl.dtypes, customers_tbl.dtypes, products_tbl.dtypes, orders_tbl.dtypes)
 
 # Add tables as new tab in Excel sheet
 with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a') as writer:
@@ -181,3 +212,26 @@ print(salesbystate_vw)
 # Add salesbystate_vw as new tab in Excel sheet
 with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a') as writer:
     salesbystate_vw.to_excel(writer, sheet_name='salesbystate_vw', index=True)
+
+# the Orders table currently does not have sales by team member - let's amend members to the core table
+
+def assign_sales_members_to_orders_tbl(row):
+    # Get all members in the same Sales Team
+    team_members = salesteam_tbl[salesteam_tbl['_SalesTeamID'] == row['_SalesTeamID']]
+
+    # Randomly select a member from that team
+    random_member = np.random.choice(team_members['_SalesTeamMemID'])
+
+    # Return the random member ID
+    return random_member
+
+# Apply the function to each row in the orders DataFrame to assign a SalesMemberID
+orders_tbl['_SalesTeamMemID'] = orders_tbl.apply(assign_sales_members_to_orders_tbl, axis=1)  # axis=1 -> by row
+
+# Validate changes
+print(orders_tbl)
+
+# Need to now update the orders table in the excel sheet with newly added members column
+with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    # Update the specific tab with the modified data
+    orders_tbl.to_excel(writer, sheet_name='orders_tbl', index=False)
