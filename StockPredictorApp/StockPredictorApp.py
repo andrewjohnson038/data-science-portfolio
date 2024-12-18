@@ -21,10 +21,13 @@ from prophet.plot import plot_plotly
 from plotly import graph_objs as go
 # import pandas library for dfs
 import pandas as pd
+# import Huggingface transformers model for gpt chat bot
+from groq import Groq
 
 
 # Note: in order to view the app on your local host, you will need run the following code on your terminal: streamlit run [insert location of file here {ex: %/stockpredictorapp.py}]
 # Note: this is the streamlit red color code: #FF6347
+
 
 
 
@@ -39,7 +42,7 @@ import pandas as pd
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.1 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.2 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
@@ -630,7 +633,7 @@ with kpi_col4:
 # --------------------------------------------- Home Page: Historical/Current Data Visuals --------------------------------------------------------
 
 # Create a tab list to navigate to different sections on our home page:
-home_tab1, home_tab2, home_tab3 = st.tabs(["Current/Historical Data", "Forecasted Data", "Stock Grades"])
+home_tab1, home_tab2, home_tab3, home_tab4 = st.tabs(["Current/Historical Data", "Forecasted Data", "Stock Grades", "Chat-Bot"])
 
 with home_tab1:
     # create variable for a container to put our stock detail section in:
@@ -1070,3 +1073,62 @@ with home_tab3:
 
 
 # ///////////////////////////////////////////////////////////// Stock Grader Page //////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+# ///////////////////////////////////////////////////////////// Chat Bot Page //////////////////////////////////////////////////////////////////////////
+
+# create tab for an AI ChatBot
+with home_tab4:
+
+    # Create groq client
+    client = Groq(api_key=st.secrets.get("Groq_API_Key"))
+
+    # Session State
+    if "default_model" not in st.session_state:
+        st.session_state["default_model"] = "llama3-8b-8192"
+
+    if "messages" not in st.session_state.keys():
+        st.session_state.messages = [{"role": "assistant", "content": "Hi there! Any stock-related questions? Drop it below :)"}]
+
+    print(st.session_state)
+
+    # Display the messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+    # Chat input for user message
+    if prompt := st.chat_input():
+        # append message to message collection
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        # display the new message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Display the assistant response from the model
+        with st.chat_message("assistant"):
+            # place-holder for the response text
+            response_text = st.empty()
+
+            # Call the Groq API
+            completion = client.chat.completions.create(
+                model=st.session_state.default_model,
+                messages=[
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages
+                ],
+                stream=True
+            )
+
+            full_response = ""
+
+            for chunk in completion:
+                full_response += chunk.choices[0].delta.content or ""
+                response_text.markdown(full_response)
+
+            # add full response to the messages
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
