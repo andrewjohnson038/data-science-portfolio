@@ -205,11 +205,11 @@ Spotify2023_artists = Spotify2023_artists.groupby('artist_name(s)')['streams'].s
 
 # Rank the artists by their total streams & add 'artist_rank' column
 Spotify2023_artists['artist_rank'] = Spotify2023_artists['streams'].rank(ascending=False).astype(int)
-    #Notes:
-    #We use groupby() to group the DataFrame by the 'artist_names(s)' column.
-    #We then use the sum() function to sum up the 'streams' for each artist.
-    #Next, we use the rank() function to rank the artists based on their total streams, setting ascending=False to rank in descending order.
-    #Finally, we add the resulting rank as a new column 'artist_rank' to the DataFrame.
+    # Notes:
+    # We use groupby() to group the DataFrame by the 'artist_names(s)' column.
+    # We then use the sum() function to sum up the 'streams' for each artist.
+    # Next, we use the rank() function to rank the artists based on their total streams, setting ascending=False to rank in descending order.
+    # Finally, we add the resulting rank as a new column 'artist_rank' to the DataFrame.
 
 # Let's drop any null values from artist name & review our changes:
 Spotify2023_artists = Spotify2023_artists.replace(r'^\s*$', np.nan, regex=True) # Replace any whitespace with NaN
