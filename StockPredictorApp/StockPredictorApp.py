@@ -21,8 +21,14 @@ from prophet.plot import plot_plotly
 from plotly import graph_objs as go
 # import pandas library for dfs
 import pandas as pd
+# import numpy lib
+import numpy as np
+# import matplotlib lib
+import matplotlib.pyplot as plt
 # import Huggingface transformers model for gpt chat bot
 from groq import Groq
+# import lib for applying exponential smoothing line
+from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 
 
 # Note: in order to view the app on your local host, you will need run the following code on your terminal: streamlit run [insert location of file here {ex: %/stockpredictorapp.py}]
@@ -160,7 +166,7 @@ stocks = filtered_tickers
 # create a dropdown box for our stock options (First is the dd title, second is our dd options)
 selected_stock = st.sidebar.selectbox("Select Stock:", stocks)
 
-# Fetch Additional Ticker Metrics/Info
+# Fetch Additional Ticker Metrics/Info for selected ticker
 stock_info = yf.Ticker(selected_stock).info  # fetches data based on the ticker selected
 company_name = stock_info['longName']
 pe_ratio = stock_info.get('trailingPE', None)
@@ -174,20 +180,30 @@ quick_ratio = stock_info.get('quickRatio', None)
 current_ratio = stock_info.get('currentRatio', None)
 industry = stock_info.get('industry', None)
 sector = stock_info.get('sector', None)
+market_cap = stock_info.get('marketCap', None)  # Market Capitalization
+beta = stock_info.get('beta', None)  # Stock Beta (volatility)
+earnings_date = stock_info.get('earningsDate', None)  # Next earnings date
+shares_outstanding = stock_info.get('sharesOutstanding', None)  # Number of shares outstanding
+last_dividend = stock_info.get('lastDividendValue', None)  # Last dividend value
 
-# Create a DataFrame to store the ratios if needed
+# Create a DataFrame to store the ratios for the selected ticker
 stock_ratios = pd.DataFrame({
     'PE Ratio': [pe_ratio],
     'PEG Ratio': [peg_ratio],
     'Price-to-Book': [price_to_book],
     'Debt-to-Equity': [debt_to_equity],
-    'Dividend Yield': [dividend_yield],
+    'Dividend Yield': [dividend_yield],  # Convert to percentage if available
     'Price-to-Sales': [price_to_sales],
     'ROE': [roe],
     'Quick Ratio': [quick_ratio],
     'Current Ratio': [current_ratio],
     'Industry': [industry],
-    'Sector': [sector]
+    'Sector': [sector],
+    'Market Cap': [market_cap],
+    'Beta': [beta],
+    'Earnings Date': [earnings_date],
+    'Shares Outstanding': [shares_outstanding],
+    'Last Dividend': [last_dividend]
 })
 
 print("todays stock metrics")
@@ -195,7 +211,7 @@ print(stock_ratios)
 
 # Load the data with the stock list
 stock_data = load_data(selected_stock) # loads the selected ticker data (selected_stock)
-print('todays stock info')
+print('todays stock info (stock_data df)')
 print(stock_data)
 
 # Provide load context and load ticker data
@@ -293,6 +309,27 @@ yearly_data.at[0, 'Trend'] = '■'
 # check index reset and indicators added properly:
 print("\n Yearly History Table W/ Indicators:")
 print(yearly_data)
+
+# Create function to apply exponential smoothing line to future graphs
+
+def apply_exponential_smoothing(data, smoothing_level=0.001):  # .2 = default alpha
+    """
+    Apply Simple Exponential Smoothing to the stock closing prices.
+
+    :param data: Stock data
+    :param alpha: Smoothing factor (0 < alpha <= 1) -> closer to 0 = more weight on older data. Will have a greater smoothing effect
+    - -> closer to 1 = will have less of a smoothing effect. Will follow the actual close price of the stock more closely, resulting in less of a smoothing effect
+    :return: Smoothed values
+
+    heuristic -> straightforward, rule based approach. Takes the first close price and then uses the alpha as the smoothed price moving forward
+    """
+    # Initialize the model using the hueristic method
+    es_model = SimpleExpSmoothing(data['Close'], initialization_method="heuristic")
+
+    # Fit the model with a specified smoothing level
+    es_model_fit = es_model.fit(smoothing_level=smoothing_level, optimized=False)
+
+    return es_model_fit.fittedvalues  # Returns the smoothed data based on set alpha
 
 # -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
 
@@ -633,7 +670,7 @@ with kpi_col4:
 # --------------------------------------------- Home Page: Historical/Current Data Visuals --------------------------------------------------------
 
 # Create a tab list to navigate to different sections on our home page:
-home_tab1, home_tab2, home_tab3, home_tab4 = st.tabs(["Current/Historical Data", "Forecasted Data", "Stock Grades", "Chat-Bot"])
+home_tab1, home_tab2, home_tab3, home_tab4 = st.tabs(["Historical/Current Data", "Forecasted Data", "Stock Grades", "Chat-Bot"])
 
 with home_tab1:
     # create variable for a container to put our stock detail section in:
@@ -657,6 +694,7 @@ with home_tab1:
 
                         # Create a variable for Open Price & extract the data for today if available:
                         today_open = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Open']
+
                         # Check if data is available for the field today
                         if not today_open.empty:
                             today_open = today_open.iloc[0]
@@ -679,6 +717,7 @@ with home_tab1:
 
                         # Create a variable for Trade Volume & extract the data for today if available:
                         today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
+
                         # Check if data is available for the field today and format with commas
                         if not today_vol.empty:
                             today_vol = today_vol.iloc[0]
@@ -742,7 +781,7 @@ with home_tab1:
                         # Check if data is available for the field today
                         if today_DY_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio, 2)) + "%")
+                            sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio * 100, 4)) + "%")
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Dividend Yield: {NA}")
@@ -756,6 +795,7 @@ with home_tab1:
                             sh_col1_2.metric(label="Price-to-Sales:", value=str(round(today_PS_ratio, 2)))
                         else:
                             sh_col1_2.warning(f"Price-to-Sales: {NA}")
+
 
                         # Create a variable for ROE ratio & extract the data for today if available:
                         today_ROE_ratio = roe
@@ -830,6 +870,26 @@ with home_tab1:
                         fill='tozeroy',  # adds color fill below trace
                         line=dict(color='#0072B2')
                     ))
+
+                    # Apply an exponential smoothing line to the graph starting - create smoothed pricing variable
+                    smoothed_prices = apply_exponential_smoothing(stock_data, smoothing_level=0.002)  # can change alpha
+
+                    # Add a variable for trend color
+                    # Calculate the trend direction based on the last two smoothed values
+                    trend_direction = "up" if smoothed_prices.iloc[-1] > smoothed_prices.iloc[-2] else "down"
+
+                    # Define color based on trend direction
+                    trend_color = 'green' if trend_direction == "up" else 'red'
+
+                    # Trace the exponential smoothing line to the graph
+                    fig.add_trace(go.Scatter(
+                        x=stock_data['Date'],
+                        y=smoothed_prices,
+                        name='Smoothing (a = .002)',
+                        line=dict(color=trend_color, width=1.5, dash='dash')  # Red dashed line for smoothed prices
+                    ))
+
+                    # Update layout
                     fig.layout.update(xaxis_rangeslider_visible=True,
                                       template='plotly_white')
                     st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
@@ -838,7 +898,7 @@ with home_tab1:
         # Provide title for raw data visual
         sh_c.write("Ticker Price History (Last 10 Years):")
 
-        # Add Yearly Data Table visual to column 2 of our sh container:
+        # Add Yearly Data Table visual to new container:
         with sh_c.container(border=True):
 
             # Apply HTML formatting for "Price Trend" column to add as a column in the df
@@ -865,8 +925,10 @@ with home_tab1:
             # Format 'Date' column to remove the time component
             yearly_data['Date'] = yearly_data['Date'].dt.strftime('%Y-%m-%d')
 
-            # Move the Trend column to the second column after 'Date'
-            yearly_data = yearly_data[['Trend', 'Date', 'Open', 'Close', 'Adj Close', 'High', 'Low', 'Volume']]
+            # Move the Trend column to the first column
+            yearly_data_columns = ['Trend'] + [col for col in yearly_data.columns if col != 'Trend']  # variable for columns
+            yearly_data = yearly_data[yearly_data_columns]
+
             print(f"styled yearly data df {yearly_data}")
 
             # Apply the style function above to the "Trend" column
@@ -877,6 +939,235 @@ with home_tab1:
 
             # write a table of the past data within the last 10 years on this date
             st.dataframe(yearly_data, hide_index=True, use_container_width=True)
+
+        # Add Risk Section:
+        sh_c.write("Risk Assessment:")
+
+        # Create new Container for VaR Risk metrics:
+        with sh_c.container(border=True):
+
+            print(stock_data.columns)
+            print(stock_data.index)
+
+            # Date Index:
+            # - The date index of the stock_data df is not in proper format to use the pandas resample() method.
+            # Need to reset to datetime index
+
+            # Ensure the 'Date' column is in datetime format (if it isn't already)
+            stock_data['Date'] = pd.to_datetime(stock_data['Date'], errors='coerce')
+
+            # Set the 'Date' column as the index of the DataFrame
+            stock_data.set_index('Date', inplace=True)
+
+            # Define function to calculate Historical VaR at 95% confidence level
+            def calculate_historical_VaR(stock_data, time_window='daily'):
+                """
+                Calculates the historical Value at Risk (VaR) at 95% confidence for a given time window (daily, monthly, yearly).
+
+                Parameters:
+                - stock_data: pandas DataFrame with historical stock data.
+                - time_window: str, the time window for VaR calculation ('daily', 'monthly', or 'yearly').
+
+                Returns:
+                - VaR value as a percentage and in dollars.
+
+                - resample() -> pandas method that allows for quickly changing the frequency of data using a letter
+                            'D': Day
+                            'W': Week
+                            'M': Month
+                            'A': Year
+                            'H': Hour
+                            'Q': Quarter
+                            'B': Business day (excludes weekends)
+
+                            ex:
+                            df.resample(rule, how='mean', fill_method='ffill')
+
+                            The errors='coerce' argument ensures that invalid or incorrect date formats are turned
+                            into NaT (Not a Time) instead of raising errors.
+                """
+
+                # Calculate daily returns using adjusted closing price based on time window
+                if time_window == 'daily':
+                    stock_data['Return'] = stock_data['Adj Close'].pct_change()
+                elif time_window == 'monthly':
+                    stock_data['Return'] = stock_data['Adj Close'].resample('ME').ffill().pct_change()
+                elif time_window == 'yearly':
+                    stock_data['Return'] = stock_data['Adj Close'].resample('YE').ffill().pct_change()
+                else:
+                    raise ValueError("Invalid time window. Choose from 'daily', 'monthly', or 'yearly'.")
+
+                # Sort in ascending order
+                sorted_returns = stock_data['Return'].sort_values()
+
+                # Calculate the 5th percentile (for 95% confidence level)
+                hist_VaR_95 = sorted_returns.quantile(0.05)
+
+                # Calculate the VaR in dollars
+                current_adj_price = stock_data['Adj Close'].iloc[-1]
+                hist_VaR_95_dollars = hist_VaR_95 * current_adj_price
+
+                # Return both VaR in percentage and dollars
+                return hist_VaR_95, hist_VaR_95_dollars
+
+            # Function to calculate Daily VaR
+            def calculate_daily_VaR(stock_data):
+                return calculate_historical_VaR(stock_data, time_window='daily')
+
+            # Function to calculate Monthly VaR
+            def calculate_monthly_VaR(stock_data):
+                return calculate_historical_VaR(stock_data, time_window='monthly')
+
+            # Function to calculate Yearly VaR
+            def calculate_yearly_VaR(stock_data):
+                return calculate_historical_VaR(stock_data, time_window='yearly')
+
+            # Calculate hist VaR for daily, monthly, and yearly
+            hist_daily_VaR_95, hist_VaR_95_dollars = calculate_daily_VaR(stock_data)
+            hist_monthly_VaR_95, hist_monthly_VaR_95_dollars = calculate_monthly_VaR(stock_data)
+            hist_yearly_VaR_95, hist_yearly_VaR_95_dollars = calculate_yearly_VaR(stock_data)
+
+            # Header for VAR risk section
+            st.markdown("<h4 style='text-align: center;'>Historical VaR - Model Metrics</h3>", unsafe_allow_html=True)
+
+            # Write to container horizontally in 3 columns:
+            risk_col1, risk_col2, risk_col3 = st.columns(3)
+
+            with risk_col1:
+                st.metric(label="1-Day VaR at 95% Confidence", value=f"{hist_daily_VaR_95 * 100:.2f}%", delta=f"${hist_VaR_95_dollars:.2f}", delta_color="inverse")
+
+            with risk_col2:
+                st.metric(label="1-Month VaR at 95% Confidence", value=f"{hist_monthly_VaR_95 * 100:.2f}%", delta=f"${hist_monthly_VaR_95_dollars:.2f}", delta_color="inverse")
+
+            with risk_col3:
+                st.metric(label="1-Year VaR at 95% Confidence", value=f"{hist_yearly_VaR_95 * 100:.2f}%", delta=f"${hist_yearly_VaR_95_dollars:.2f}", delta_color="inverse")
+
+            # VAR Explanation
+            with st.expander("Value at Risk (VaR)*"):
+                st.markdown("""
+                **Value at Risk (VaR)** is a measure used to assess the risk of loss on an investment. It indicates the maximum potential loss over a specified time horizon (daily, monthly, or yearly) at a given confidence level (e.g., 95%).
+        
+                - **Daily VaR**: The maximum expected loss for one day.
+                - **Monthly VaR**: The maximum expected loss for one month.
+                - **Yearly VaR**: The maximum expected loss for one year.
+        
+                **How is it calculated in this model?**
+                The VaR is calculated by looking at the historical adj closing price data over the last 10 years (end YTD) and finding the point at which the worst 5% of returns fall. For example, if the VaR at a 95% confidence level is 3%, it means there is a 95% chance that the loss will not exceed 3% on the given time horizon.
+        
+                **Example**:
+                - If the 1-day VaR is 5%, it means there is a 95% chance the value of the asset will not drop more than 5% in one day.
+                """)
+
+        # Create new Container for Monte Carlo Simulation Container:
+        with sh_c.container(border=True):
+
+            # Header for VAR risk section
+            st.markdown("<h4 style='text-align: center;'>Monte Carlo Simulation - 1 Year Trading Period</h3>", unsafe_allow_html=True)
+
+            # Set parameters for simulation
+            mc_simulations_num = 1000  # Number of simulated paths
+            mc_days_num = 252  # Number of days to simulate (e.g., one year of trading days)
+
+            # Calculate daily returns (log returns)
+            stock_data['Log Return'] = np.log(stock_data['Close'] / stock_data['Close'].shift(1))
+
+            # Drop any missing values
+            stock_data = stock_data.dropna()
+
+            # Display the first few log returns
+            stock_data[['Close', 'Log Return']].head()
+
+            # Calculate the mean and volatility from the historical data
+            mean_return = stock_data['Log Return'].mean()
+            volatility = stock_data['Log Return'].std()
+
+            # Simulate future price paths
+            mc_simulations = np.zeros((mc_simulations_num, mc_days_num))  # Shape should be (10000, 252)
+            last_price = stock_data['Close'].iloc[-1]  # Use the last closing price as the starting point
+
+            # Ensure the simulation loop works without dimension issues
+            for i in range(mc_simulations_num):
+
+                # Generate random returns for each day in the simulation
+                mc_random_returns = np.random.normal(mean_return, volatility, mc_days_num)
+
+                # Generate the simulated price path using compound returns
+                price_path = last_price * np.exp(np.cumsum(mc_random_returns))  # price_path shape will be (252,)
+
+                # Assign the simulated price path to the simulations array
+                mc_simulations[i, :] = price_path  # Assign to the i-th row of the simulations array
+
+            # Convert the simulations to a DataFrame for easier visualization
+            mc_simulated_prices = pd.DataFrame(mc_simulations.T, columns=[f'Simulation {i+1}' for i in range(mc_simulations_num)])
+
+            # Check a sample of simulated paths
+            print(mc_simulated_prices.head())
+
+            # Debug checks
+            print(price_path.shape)  # should print (252,) each time
+            print(mc_simulations.shape)  # should print (10000, 252)
+
+            # Calculate the 5th, 50th, and 95th percentiles of the simulated paths
+            percentile_5 = mc_simulated_prices.quantile(0.05, axis=1)
+            percentile_50 = mc_simulated_prices.quantile(0.5, axis=1)
+            percentile_95 = mc_simulated_prices.quantile(0.95, axis=1)
+
+            # Plot the simulation and percentiles together
+            plt.figure(figsize=(10, 4))
+
+            # Set color map
+            mc_colormap = plt.cm.plasma  # sets to "plasma" color map for variable
+            mc_colors = [mc_colormap(i / mc_simulations_num) for i in range(mc_simulations_num)]  # applies color map to iterations
+
+            # Plot all simulated paths
+            for i in range(mc_simulations_num):
+                plt.plot(mc_simulations[i], color=mc_colors[i], alpha=0.1)
+
+            # Plot the percentiles on top
+            plt.plot(percentile_5, label="5th Percentile", color='red', linestyle='--', linewidth=1)
+            plt.plot(percentile_50, label="50th Percentile (Median)", color='white', linestyle='--', linewidth=1)
+            plt.plot(percentile_95, label="95th Percentile", color='green', linestyle='--', linewidth=1)
+
+            # plot labels
+            plt.xlabel('Days', fontsize=6, family='sans-serif', color=(1, 1, 1, 0.7))  # 50% transparent white; couldn't use "alpha"
+            plt.ylabel('Price', fontsize=6, family='sans-serif', color=(1, 1, 1, 0.7))  # 50% transparent white
+            plt.legend(fontsize=6, frameon=False, labelcolor='white')
+
+            # Set the background to transparent (so it matches app background)
+            plt.gcf().patch.set_facecolor('none')  # Transparent figure background
+            plt.gca().patch.set_facecolor('none')  # Transparent axes background
+
+            # Change the ticks color to 50% transparent white (use RGBA format for color)
+            plt.tick_params(axis='both', colors=(1, 1, 1, 0.5))  # 50% transparent white for ticks
+
+            # Change the outer grid and spines to transparent
+            for spine in plt.gca().spines.values():
+                spine.set_edgecolor('none')
+                # spine.set_linewidth(0.5)
+                # spine.set_alpha(0.5)
+
+            # Adjust the layout to fit within the Streamlit container
+            plt.tight_layout()
+
+            # Display the combined plot in Streamlit
+            st.pyplot(plt)
+
+            # Monte Carlo Explanation
+            with st.expander("Monte Carlo*"):
+                st.markdown("""
+                **Monte Carlo** is a forecast simulation used to assess the volatility of an investment's probabilistic future price paths over a set time period (the simulation in app uses 252 days for trading days within a year) based on historical price movements.
+                
+                **How is it calculated in this model?**
+                The simulation generates 1000 price paths over a full year trading period using a 10 year (or earliest available under 10 years) daily ticker price history set and calculates the 5, 50, and 95 confidence intervals to compare against.
+        
+                """)
+
+
+
+
+
+
+
 
 # --------------------------------------------- Home Page: Historical/Current Data Visuals --------------------------------------------------------
 

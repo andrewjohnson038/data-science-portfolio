@@ -75,6 +75,7 @@ six==1.16.0
 smmap==5.0.1
 soupsieve==2.5
 stanio==0.5.0
+statsmodels==0.14.4
 streamlit==1.33.0
 streamlit-option-menu==0.3.13
 tenacity==8.2.3
