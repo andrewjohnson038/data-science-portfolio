@@ -48,7 +48,7 @@ from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.2 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.3 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
@@ -209,7 +209,7 @@ stock_ratios = pd.DataFrame({
 print("todays stock metrics")
 print(stock_ratios)
 
-# Load the data with the stock list
+# Load the stock data based on the ticker selected in front end
 stock_data = load_data(selected_stock) # loads the selected ticker data (selected_stock)
 print('todays stock info (stock_data df)')
 print(stock_data)
@@ -330,6 +330,13 @@ def apply_exponential_smoothing(data, smoothing_level=0.001):  # .2 = default al
     es_model_fit = es_model.fit(smoothing_level=smoothing_level, optimized=False)
 
     return es_model_fit.fittedvalues  # Returns the smoothed data based on set alpha
+
+# ---------------------------------
+
+
+# For Benchmarking Purposes, create a separate DF for SPY
+SPY_data = load_data("SPY")  # loads the selected ticker data (selected_stock)
+
 
 # -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
 
@@ -876,7 +883,7 @@ with home_tab1:
 
                     # Add a variable for trend color
                     # Calculate the trend direction based on the last two smoothed values
-                    trend_direction = "up" if smoothed_prices.iloc[-1] > smoothed_prices.iloc[-2] else "down"
+                    trend_direction = "up" if smoothed_prices.iloc[-1] > smoothed_prices.iloc[0] else "down"
 
                     # Define color based on trend direction
                     trend_color = 'green' if trend_direction == "up" else 'red'
@@ -887,6 +894,22 @@ with home_tab1:
                         y=smoothed_prices,
                         name='Smoothing (a = .002)',
                         line=dict(color=trend_color, width=1.5, dash='dash')  # Red dashed line for smoothed prices
+                    ))
+
+                    # Trace a line for the S&P 500 (SPY) as a benchmark to the selected stock
+                    # First, need to normalize the SPY data to match the stock's initial price
+                    stock_initial_price = stock_data['Close'].iloc[0]
+                    spy_initial_price = SPY_data['Close'].iloc[0]
+
+                    # Scale the SPY data to the stock's initial price
+                    normalized_spy = (SPY_data['Close'] / spy_initial_price) * stock_initial_price
+
+                    # Trace to graph
+                    fig.add_trace(go.Scatter(
+                        x=SPY_data['Date'],
+                        y=normalized_spy,
+                        name='S&P 500',
+                        line=dict(color='gray', width=1.5, dash='dash')  # Red dashed line for smoothed prices
                     ))
 
                     # Update layout
@@ -1045,18 +1068,18 @@ with home_tab1:
             # VAR Explanation
             with st.expander("Value at Risk (VaR)*"):
                 st.markdown("""
-                **Value at Risk (VaR)** is a measure used to assess the risk of loss on an investment. It indicates the maximum potential loss over a specified time horizon (daily, monthly, or yearly) at a given confidence level (e.g., 95%).
+                <span style="color:lightcoral; font-weight:bold;">**Value at Risk (VaR)**</span> is a measure used to assess the risk of loss on an investment. It indicates the maximum potential loss over a specified time horizon (daily, monthly, or yearly) at a given confidence level (e.g., 95%).
         
-                - **Daily VaR**: The maximum expected loss for one day.
-                - **Monthly VaR**: The maximum expected loss for one month.
-                - **Yearly VaR**: The maximum expected loss for one year.
+                - <span style="color:lightcoral; font-weight:bold;">**Daily VaR**</span>: The maximum expected loss for one day.
+                - <span style="color:lightcoral; font-weight:bold;">**Monthly VaR**</span>: The maximum expected loss for one month.
+                - <span style="color:lightcoral; font-weight:bold;">**Yearly VaR**</span>: The maximum expected loss for one year.
         
-                **How is it calculated in this model?**
+                <span style="color:lightcoral; font-weight:bold;">**How it's Calculated in this Model**</span>:
                 The VaR is calculated by looking at the historical adj closing price data over the last 10 years (end YTD) and finding the point at which the worst 5% of returns fall. For example, if the VaR at a 95% confidence level is 3%, it means there is a 95% chance that the loss will not exceed 3% on the given time horizon.
         
-                **Example**:
+                <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
                 - If the 1-day VaR is 5%, it means there is a 95% chance the value of the asset will not drop more than 5% in one day.
-                """)
+                """, unsafe_allow_html=True)
 
         # Create new Container for Monte Carlo Simulation Container:
         with sh_c.container(border=True):
@@ -1155,12 +1178,15 @@ with home_tab1:
             # Monte Carlo Explanation
             with st.expander("Monte Carlo*"):
                 st.markdown("""
-                **Monte Carlo** is a forecast simulation used to assess the volatility of an investment's probabilistic future price paths over a set time period (the simulation in app uses 252 days for trading days within a year) based on historical price movements.
-                
-                **How is it calculated in this model?**
+                <span style="color:lightcoral; font-weight:bold;">**Monte Carlo**</span> is a forecast simulation used to assess the volatility of an investment's probabilistic future price paths over a set time period (the simulation in app uses 252 days for trading days within a year) based on historical price movements.
+
+                <span style="color:lightcoral; font-weight:bold;">**How it's Calculated in this Model**</span>:
                 The simulation generates 1000 price paths over a full year trading period using a 10 year (or earliest available under 10 years) daily ticker price history set and calculates the 5, 50, and 95 confidence intervals to compare against.
-        
-                """)
+
+                - <span style="color:lightcoral; font-weight:bold;">**95th Percentile**</span>: 95% of the simulated price paths fell under the 95th percentile path; Only 5% of the simulations were above.
+                - <span style="color:lightcoral; font-weight:bold;">**50th Percentile**</span>: 50% of the simulated price paths fell under the 50th percentile path. 50% were above. This is the median path and most likely outcome.
+                - <span style="color:lightcoral; font-weight:bold;">**5th Percentile**</span>: Only 5% of the simulated price paths fell under the 5th percentile path. 95% of the simulations were above.
+                """, unsafe_allow_html=True)
 
 
 
