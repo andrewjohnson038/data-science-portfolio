@@ -48,7 +48,7 @@ from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.4 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.5 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
@@ -79,15 +79,15 @@ st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 # --------------------------------------------------- Data: Set Time Parameters -----------------------------------------------------------------
 
 print("\n Today Date:")
-today = datetime.today() # retrieve today's data in sme format as above. date.today() retrieves the current date; apartof datetime module in Python. .strftime("%y-%m-%d") converts the date object to a string with the above format
+today = datetime.today()  # retrieve today's data in sme format as above. date.today() retrieves the current date; apartof datetime module in Python. .strftime("%y-%m-%d") converts the date object to a string with the above format
 print(today)
 
 print("\n Yesterday Date:")
-yesterday = today - timedelta(days=1) # if we need to write code for the day before today, can use this
+yesterday = today - timedelta(days=1)  # if we need to write code for the day before today, can use this
 print(yesterday)
 
 print("\n 10 Yrs Ago Date:")
-start_date = today.replace(year=today.year - 10) # retrieve data starting on this date 10 years ago
+start_date = today.replace(year=today.year - 10)  # retrieve data starting on this date 10 years ago
 print(start_date)
 
 # Get Current Year #
@@ -109,6 +109,11 @@ print(Current_Month)
 print("\n CURRENT DAY:")
 Current_Day = datetime.now().day
 print(Current_Day)
+
+# Get Day a Year Ago From Today (YOY)
+print("\n YOY:")
+one_year_ago = today - timedelta(days=365)
+print(one_year_ago)
 
 # --------------------------------------------------- Data: Set Time Parameters -----------------------------------------------------------------
 
@@ -309,6 +314,17 @@ yearly_data.at[0, 'Trend'] = '■'
 # check index reset and indicators added properly:
 print("\n Yearly History Table W/ Indicators:")
 print(yearly_data)
+
+# Add a df for moving average data
+moving_average_data = stock_data.copy()
+
+# Calculate the 50-day and 200-day SMAs for the new DataFrame
+moving_average_data['50_day_SMA'] = moving_average_data['Close'].rolling(window=50, min_periods=1).mean()
+moving_average_data['200_day_SMA'] = moving_average_data['Close'].rolling(window=200, min_periods=1).mean()
+
+# Debugging - verify columns print
+print(moving_average_data.columns)
+print(moving_average_data[['Date', 'Close', '50_day_SMA', '200_day_SMA']].tail())  # Check last couple rows
 
 # Create function to apply exponential smoothing line to future graphs
 
@@ -868,6 +884,20 @@ with home_tab1:
 
             # Create a Time Series Visual for our Data in column 2 of the sh container:
             with st.container(border=True):
+
+                # Apply an exponential smoothing line to the graph starting - create smoothed pricing variable
+                smoothed_prices = apply_exponential_smoothing(stock_data, smoothing_level=0.002)  # can change alpha
+
+                # Add a variable for trend color
+                # Calculate the trend direction based on the last two smoothed values
+                trend_direction = "up" if smoothed_prices.iloc[-1] > smoothed_prices.iloc[0] else "down"
+
+                # Define color based on trend direction
+                trend_color = 'rgba(0, 177, 64, .8)' if trend_direction == "up" else 'rgba(244, 67, 54, 0.8)'
+
+                # Define color based on trend direction
+                trend_fill = 'rgba(0, 177, 64, 0.2)' if trend_direction == "up" else 'rgba(244, 67, 54, 0.2)'
+
                 def plot_raw_data():  # define a function for our plotted data (fig stands for figure)
                     fig = go.Figure()  # create a plotly graph object.
                     fig.add_trace(go.Scatter(
@@ -875,25 +905,16 @@ with home_tab1:
                         y=stock_data['Close'],
                         name='Price',
                         fill='tozeroy',  # adds color fill below trace
-                        line=dict(color='#0072B2')
+                        line=dict(color=trend_color),  # give line color based on smoothing trend line
+                        fillcolor=trend_fill  # Light green with transparency
                     ))
-
-                    # Apply an exponential smoothing line to the graph starting - create smoothed pricing variable
-                    smoothed_prices = apply_exponential_smoothing(stock_data, smoothing_level=0.002)  # can change alpha
-
-                    # Add a variable for trend color
-                    # Calculate the trend direction based on the last two smoothed values
-                    trend_direction = "up" if smoothed_prices.iloc[-1] > smoothed_prices.iloc[0] else "down"
-
-                    # Define color based on trend direction
-                    trend_color = 'green' if trend_direction == "up" else 'red'
 
                     # Trace the exponential smoothing line to the graph
                     fig.add_trace(go.Scatter(
                         x=stock_data['Date'],
                         y=smoothed_prices,
                         name='Smoothing (a = .002)',
-                        line=dict(color=trend_color, width=1.5, dash='dash')  # Red dashed line for smoothed prices
+                        line=dict(color='yellow', width=1.5, dash='dash')  # Red dashed line for smoothed prices
                     ))
 
                     # Trace a line for the S&P 500 (SPY) as a benchmark to the selected stock
@@ -913,15 +934,14 @@ with home_tab1:
                     ))
 
                     # Update layout
-                    fig.layout.update(xaxis_rangeslider_visible=True,
-                                      template='plotly_white')
+                    fig.layout.update(xaxis_rangeslider_visible=True,template='plotly_white')
                     st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
                 plot_raw_data()
 
-        # Provide title for raw data visual
-        sh_c.write("Ticker Price History (Last 10 Years):")
+        # Price Trend Section (Long Term Price Trend)
+        sh_c.write("Price Trend History- Long Term (Limit 10 Years):")
 
-        # Add Yearly Data Table visual to new container:
+        # Add a Yearly Data Trend visual to container:
         with sh_c.container(border=True):
 
             # Apply HTML formatting for "Price Trend" column to add as a column in the df
@@ -963,6 +983,279 @@ with home_tab1:
             # write a table of the past data within the last 10 years on this date
             st.dataframe(yearly_data, hide_index=True, use_container_width=True)
 
+            # Price Trend Section (Long Term Price Trend)
+            sh_c.write("Price Trend History - Short Term:")
+
+            # Add Short Term Trend visuals to ST Trend Section; split into two columns in app:
+            sh_col1, sh_col2 = sh_c.columns([6, 4])  # Use ratios to make control area width
+
+            with sh_col1.container(border=True):
+                def plot_mov_avg_data():  # define a function for our plotted data (fig stands for figure)
+
+                    # Filter moving average df to include only the last year of data
+                    one_yr_moving_average_data = moving_average_data[moving_average_data['Date'] >= one_year_ago]
+
+                    fig = go.Figure()  # create a plotly graph object.
+                    fig.add_trace(go.Scatter(
+                        x=one_yr_moving_average_data['Date'],
+                        y=one_yr_moving_average_data['Close'],
+                        name='Price',
+                        fill='tozeroy',  # adds color fill below trace
+                        line=dict(color='grey')
+                    ))
+
+                    # Trace for the 200-day SMA
+                    fig.add_trace(go.Scatter(
+                        x=one_yr_moving_average_data['Date'],
+                        y=one_yr_moving_average_data['200_day_SMA'],
+                        name='200-Day SMA',
+                        line=dict(color='orange', width=1),
+                        opacity=.8
+                    ))
+
+                    # Split the 50-day SMA into two parts: Above the 200-day SMA and Below the 200-day SMA
+                    above_50_sma = one_yr_moving_average_data[one_yr_moving_average_data['50_day_SMA'] > one_yr_moving_average_data['200_day_SMA']]
+                    below_50_sma = one_yr_moving_average_data[one_yr_moving_average_data['50_day_SMA'] < one_yr_moving_average_data['200_day_SMA']]
+
+                    # Trace for the 50-day SMA when above the 200-day SMA (green)
+                    fig.add_trace(go.Scatter(
+                        x=above_50_sma['Date'],
+                        y=above_50_sma['50_day_SMA'],
+                        name='50-Day SMA (Above 200)',
+                        line=dict(color='#00B140', width=2, dash='dash'),
+                        opacity=1
+                    ))
+
+                    # Trace for the 50-day SMA when below the 200-day SMA (red)
+                    fig.add_trace(go.Scatter(
+                        x=below_50_sma['Date'],
+                        y=below_50_sma['50_day_SMA'],
+                        name='50-Day SMA (Below 200)',
+                        line=dict(color='red', width=2, dash='dash'),
+                        opacity=1
+                    ))
+
+                    # Update layout
+                    fig.layout.update(xaxis_rangeslider_visible=True, template='plotly_white')
+                    st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
+                plot_mov_avg_data()
+
+                # kpi for Present day SMA indicator
+                with sh_col1.container(border=True):
+
+                    # Get latest day price and SMA metrics
+                    price = moving_average_data['Close'].iloc[-1]  # Get the latest closing price
+                    sma_50 = moving_average_data['50_day_SMA'].iloc[-1]  # Latest 50-day SMA
+                    sma_200 = moving_average_data['200_day_SMA'].iloc[-1]  # Latest 200-day SMA
+
+                    # Calculate the difference between 50-day and 200-day SMA
+                    sma_price_difference = sma_50 - sma_200
+
+                    # Calculate the percentage difference between the 50-day and 200-day SMA
+                    sma_percentage_difference = (sma_price_difference / sma_200) * 100
+
+                    # Logic to decide if it's a good buy or sell based on the crossover
+                    if sma_percentage_difference > 5:
+                        signal = "Bullish Trend Signal"
+                        color = "rgba(0, 177, 64, 0.6)"  # Green color for Buy
+                        text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+                        action = "BUY"
+                        indicator = f"{sma_percentage_difference:.2f}% Price Differential*"
+                    if sma_percentage_difference < -5:
+                        signal = "Bearish Trend Signal"
+                        color = "rgba(244, 67, 54, 0.6)"  # Red color for Sell
+                        text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+                        action = "SELL"
+                        indicator = f"{sma_percentage_difference:.2f}% Price Differential*"
+                    else:
+                        signal = "Neutral Market Momentum"
+                        color = "rgba(255, 255, 0, 0.6)"  # Yellow color for Neutral
+                        text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+                        action = "HOLD"
+                        indicator = f"{sma_percentage_difference:.2f}% Price Differential*"
+
+                    # Provide KPI title
+                    st.markdown("<p style='margin: 0; padding: 0; font-size: 14px; '>Latest 50-Day & 200-Day SMA Price Differential:</p>", unsafe_allow_html=True)  # writing with html removes extra spacing between lines
+
+                    # Write KPI data to app
+                    st.markdown(f"""
+                        <div style='
+                            display: inline-block; 
+                            font-size: 48px; 
+                            margin: 0; 
+                            padding: 0; 
+                            vertical-align: middle;'>
+                            ${sma_price_difference:.2f}
+                        </div>
+                        <div style='
+                            display: inline-block; 
+                            background-color: {color}; 
+                            color: {text_color}; 
+                            padding: 10px 20px; 
+                            border-radius: 30px; 
+                            font-size: 12px; 
+                            font-weight: bold; 
+                            text-align: center; 
+                            margin-left: 20px;
+                            vertical-align: middle;
+                        '>
+                            {signal}: {indicator}
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            # Create a visual for RSI data over 14-day window
+            with sh_col2.container(border=True):
+                rsi_data = stock_data
+                def calculate_rsi(rsi_data, window=14):
+
+                    # Calculate the difference in price from previous day
+                    delta = rsi_data['Close'].diff()
+
+                    # Get the positive gains (where delta is positive) and negative losses (where delta is negative)
+                    gain = (delta.where(delta > 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of gains
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of losses
+
+                    # Calculate the Relative Strength (RS)
+                    rs = gain / loss
+
+                    # Calculate the RSI
+                    rsi = 100 - (100 / (1 + rs))
+
+                    return rsi
+
+                rsi_values = calculate_rsi(rsi_data)
+
+                # Get the most recent RSI value (latest day)
+                latest_rsi_value = rsi_values.iloc[-1]  # This is the RSI for the most recent day
+
+                # Write a buy, hold, sell momentum "if" logic based on rsi
+                if latest_rsi_value > 70:
+                    signal = "Currently Overbought - Consider Sell*"
+                    color = "rgba(244, 67, 54, 0.6)"  # Sell signal in red
+                    text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+                elif latest_rsi_value < 30:
+                    signal = "Currently Oversold - Consider Buy*"
+                    color = "rgba(0, 177, 64, 0.6)"  # Buy signal in green
+                    text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+                else:
+                    signal = "Neutral Momentum - Consider Holding*"
+                    color = "rgba(255, 255, 0, 0.6)"  # Neutral signal in yellow
+                    text_color = "white"  # Setting as white but leaving a variable if want to change in the future
+
+                # Provide visual title
+                st.markdown("<p style='margin: 0; padding: 0; font-size: 14px; '>RSI Value (14-Day Window):</p>", unsafe_allow_html=True)  # writing with html removes extra spacing between lines
+
+                # Write value and buy/hold/sell indicator to app
+                st.markdown(f"""
+                    <div style='
+                        display: inline-block; 
+                        font-size: 48px; 
+                        margin: 0; 
+                        padding: 0;
+                        vertical-align: middle;
+                    '>{latest_rsi_value:.2f}</div>
+                    <div style='
+                        display: inline-block; 
+                        background-color: {color}; 
+                        color: {text_color}; 
+                        padding: 10px 20px; 
+                        border-radius: 30px; 
+                        font-size: 12px; 
+                        font-weight: bold; 
+                        text-align: center; 
+                        margin-left: 20px;
+                        vertical-align: middle;
+                    '>
+                        {signal}
+                    </div>
+                """, unsafe_allow_html=True)
+
+            # Create Container for MACD visual
+            with sh_col2.container(border=True):
+                # Calculate MACD and Signal line to provide additional insight on short term trend momentum and strength
+                def calculate_macd(df, fast=12, slow=26, signal=9):
+
+                    # Calculate the Fast and Slow Exponential Moving Averages
+                    df['EMA_fast'] = df['Close'].ewm(span=fast, adjust=False).mean()
+                    df['EMA_slow'] = df['Close'].ewm(span=slow, adjust=False).mean()
+
+                    # MACD Line = Fast EMA - Slow EMA
+                    df['MACD'] = df['EMA_fast'] - df['EMA_slow']
+
+                    # Signal Line = 9-period EMA of MACD
+                    df['Signal'] = df['MACD'].ewm(span=signal, adjust=False).mean()
+
+                    # Histogram = MACD - Signal
+                    df['Histogram'] = df['MACD'] - df['Signal']
+
+                    return df
+
+                # Apply the MACD calculation to the stock data
+                macd_data = calculate_macd(stock_data)
+
+                # Filter MACD df to include only the last year of data
+                macd_data = macd_data[moving_average_data['Date'] >= one_year_ago]
+
+                # Plot the MACD chart with Signal and Histogram
+                with st.container():
+
+                    # MACD + Signal Line Plot
+                    fig = go.Figure()
+
+                    # Add MACD Line
+                    fig.add_trace(go.Scatter(
+                        x=macd_data['Date'],
+                        y=macd_data['MACD'],
+                        mode='lines',
+                        name='MACD',
+                        line=dict(color='rgba(255, 255, 0, 0.6)')))  # yellow
+
+                    # Add Signal Line
+                    fig.add_trace(go.Scatter(
+                        x=macd_data['Date'],
+                        y=macd_data['Signal'],
+                        mode='lines',
+                        name='Signal',
+                        line=dict(color='rgba(244, 67, 54, 0.6)')))  # red
+
+                    # Add Histogram (Difference between MACD and Signal)
+                    fig.add_trace(go.Bar(
+                        x=macd_data['Date'],
+                        y=macd_data['Histogram'],
+                        name='Histogram',
+                        marker=dict(color='rgba(128, 128, 128, 0.6)'),
+                    ))
+
+                    # Update layout with titles and axis labels
+                    fig.update_layout(
+                        title='MACD - YoY',
+                        xaxis_title='Date',
+                        yaxis_title='Value',
+                        template='plotly_white',
+                        barmode='relative',
+                        showlegend=True
+                    )
+
+                    # Display the chart
+                    st.plotly_chart(fig, use_container_width=True)
+
+        # Add a container for short-term trend section footnote expander:
+        with sh_c.container(border=True):
+
+            # write expander to app
+            with st.expander("Leveraging Short Term Models for Short-Term Buy/Sell/Hold Actions*"):  # add footnote drop-down
+                st.markdown("""
+                <span style="color:lightcoral; font-weight:bold;">**Relative Strength Index (RSI)**</span> is a momentum oscillator that provides a range from 0-100 to indicate if the asset is under or overpriced based on its speed and change of price movements.
+                
+                Interpret the RSI Ranges can be interpreted with the following logic:
+                - <span style="color:lightcoral; font-weight:bold;">**RSI > 70**</span> = Likely Overbought (Sell Signal): The maximum expected loss for one day.
+                - <span style="color:lightcoral; font-weight:bold;">**RSI ≈ 50**</span> = Neutral State: The maximum expected loss for one month.
+                - <span style="color:lightcoral; font-weight:bold;">**RSI < 30**</span> = Likely Oversold (Buy Signal): The maximum expected loss for one year.
+        
+                <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                - If Meta's RIS is under 20, this indicates a more-extreme likelihood of market oversell compared to if the RSI were at 40, indicating market activity is in a neutral state
+                """, unsafe_allow_html=True)
+
         # Add Risk Section:
         sh_c.write("Risk Assessment:")
 
@@ -973,7 +1266,7 @@ with home_tab1:
             print(stock_data.index)
 
             # Date Index:
-            # - The date index of the stock_data df is not in proper format to use the pandas resample() method.
+            # The date index of the stock_data df is not in proper format to use the pandas resample() method.
             # Need to reset to datetime index
 
             # Ensure the 'Date' column is in datetime format (if it isn't already)
@@ -1237,6 +1530,7 @@ with home_tab2:
         # Write Forecast Graph Container in col1:
         fs_graph_c = fs_c_col1.container(border=True)
         with fs_graph_c:
+
                 # Plot the forecasted future data using the prophet model within a forecasted visual:
                 fig1 = plot_plotly(trained_model, forecast)  # plot visual (plotly needs the model and forecast to plot)
 
