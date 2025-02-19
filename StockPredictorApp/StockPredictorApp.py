@@ -30,6 +30,10 @@ from groq import Groq
 # import lib for applying exponential smoothing line
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 
+import requests
+import json
+import sys
+
 
 # Note: in order to view the app on your local host, you will need run the following code on your terminal: streamlit run [insert location of file here {ex: %/stockpredictorapp.py}]
 # Note: this is the streamlit red color code: #FF6347
@@ -133,6 +137,7 @@ print(one_year_ago)
 
 @st.cache_data # caache data to improve load speeds in app
 def load_data(ticker): # define our "load data" function. The function "load_data" takes one parameter, "ticker", as a string representing the ticker symbol of the stock.
+
     stock_data = yf.download(ticker, start=start_date, end=today) # Fetch ticker data from yahoo finance within our date range. returns data in a pandas df (data = df)
     stock_data.reset_index(inplace=True) # this will reset the index to pull the data starting on today's date in the first column
 
@@ -142,7 +147,7 @@ def load_data(ticker): # define our "load data" function. The function "load_dat
     date_range_df = pd.DataFrame({'Date': date_range})  # Convert date range to DataFrame
     stock_data = pd.merge(date_range_df, stock_data, on='Date', how='left').ffill()  # Merge date range with original DataFrame, filling missing values with the last available data
 
-    return stock_data # return data with the range and ticker params to df "stock_data"
+    return stock_data  # return data with the range and ticker params to df "stock_data"
 
 
 # retrieve nasdaq tickers:
@@ -171,8 +176,83 @@ stocks = filtered_tickers
 # create a dropdown box for our stock options (First is the dd title, second is our dd options)
 selected_stock = st.sidebar.selectbox("Select Stock:", stocks)
 
-# Fetch Additional Ticker Metrics/Info for selected ticker
-stock_info = yf.Ticker(selected_stock).info  # fetches data based on the ticker selected
+# Fetch Stock Info and handle errors
+try:
+    stock_info = yf.Ticker(selected_stock).info  # Try to fetch stock information
+
+    # Check if the response is valid (not empty)
+    if not stock_info or "error" in stock_info:
+        raise ValueError("Received an empty or invalid response.")
+
+# Handle errors related to the request, invalid JSON, or empty response
+except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
+
+    # Add an error message in Streamlit
+    import streamlit as st
+
+    st.markdown("""
+        <style>
+            /* Keyframes for rotating the error icon */
+            @keyframes rotate {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+    
+            /* Keyframes for sliding the error box in */
+            @keyframes slideIn {
+                0% { transform: translateY(-100%); }
+                100% { transform: translateY(0); }
+            }
+    
+            #error-message {
+                background: #f8d7da; 
+                color: #721c24; 
+                padding: 20px 30px; 
+                border-radius: 12px; 
+                font-family: 'Roboto', sans-serif; 
+                box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.1); 
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between; 
+                position: relative; 
+                animation: slideIn 0.5s ease-out;
+            }
+    
+            #error-message .error-icon {
+                font-size: 30px;
+                margin-right: 30px;
+                animation: rotate 3s infinite linear;
+            }
+    
+            #error-message .close-btn {
+                background: none; 
+                border: none; 
+                font-size: 24px; 
+                color: #721c24; 
+                cursor: pointer; 
+                font-weight: bold; 
+                transition: color 0.3s, transform 0.3s;
+            }
+    
+            #error-message .close-btn:hover {
+                color: #e63946;
+                transform: scale(1.1);
+            }
+        </style>
+    
+        <div id="error-message">
+            <div style="display: flex; align-items: center;">
+                <span class="error-icon">X</span>
+                <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
+                    An error occurred while fetching data - Too many calls have been made to the yahoo finance API. Please wait until tomorrow.
+                </span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Stop execution of any further script if the error occurs
+    sys.exit()
+
+# Retrieve additional metrics from yahoo finance api
 company_name = stock_info['longName']
 pe_ratio = stock_info.get('trailingPE', None)
 peg_ratio = stock_info.get('pegRatio', None)
