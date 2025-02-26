@@ -135,30 +135,42 @@ print(one_year_ago)
 
 # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
 
-@st.cache_data # caache data to improve load speeds in app
-def load_data(ticker): # define our "load data" function. The function "load_data" takes one parameter, "ticker", as a string representing the ticker symbol of the stock.
+@st.cache_data()
+def load_data(ticker):  # Define the "load data" function
+    stock_data = yf.download(ticker, start=start_date, end=today)  # Fetch data from Yahoo Finance
 
-    stock_data = yf.download(ticker, start=start_date, end=today) # Fetch ticker data from yahoo finance within our date range. returns data in a pandas df (data = df)
-    stock_data.reset_index(inplace=True) # this will reset the index to pull the data starting on today's date in the first column
+    # Check the index structure before resetting
+    print("Current stock_data index:")
+    print(stock_data.index)
 
-    # Fill in any missing dates with the most recent date's data
-    stock_data['Date'] = pd.to_datetime(stock_data['Date'])  # Convert 'Date' column to datetime
-    date_range = pd.date_range(start=stock_data['Date'].min(), end=stock_data['Date'].max())  # Create a complete date range within the fetched data
-    date_range_df = pd.DataFrame({'Date': date_range})  # Convert date range to DataFrame
-    stock_data = pd.merge(date_range_df, stock_data, on='Date', how='left').ffill()  # Merge date range with original DataFrame, filling missing values with the last available data
+    # Reset the index to remove any MultiIndex structure (if exists)
+    stock_data.reset_index(inplace=True)  # This will reset all levels of the index
 
-    return stock_data  # return data with the range and ticker params to df "stock_data"
+    # Flatten MultiIndex columns if they exist
+    stock_data.columns = [col[0] if isinstance(col, tuple) else col for col in stock_data.columns]
+
+    # Now you should have a simpler DataFrame with the 'Date', 'Close', 'High', 'Low', etc.
+
+    # Fill in missing dates if any
+    stock_data['Date'] = pd.to_datetime(stock_data['Date'])  # Ensure 'Date' is a datetime object
+    date_range = pd.date_range(start=stock_data['Date'].min(), end=stock_data['Date'].max())  # Complete date range
+    date_range_df = pd.DataFrame({'Date': date_range})  # Create a DataFrame with the full date range
+
+    # Merge and fill missing data with the last available values
+    stock_data = pd.merge(date_range_df, stock_data, on='Date', how='left').ffill()  # Merge and forward fill
+
+    return stock_data  # Return the cleaned and filled data
 
 
 # retrieve nasdaq tickers:
 nasdaq_ticker_json_link = 'https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/nasdaq/nasdaq_tickers.json' # create variable for link to github with daily updated tickers from nasdaq
-nasdaq_stock_tickers = pd.read_json(nasdaq_ticker_json_link,  typ='series') # read the json file in pandas as a series since there is no column title
-nasdaq_stocks = nasdaq_stock_tickers.tolist() # convert set to list
+nasdaq_stock_tickers = pd.read_json(nasdaq_ticker_json_link,  typ='series')  # read the json file in pandas as a series since there is no column title
+nasdaq_stocks = nasdaq_stock_tickers.tolist()  # convert set to list
 
 # retrieve nyse tickers:
 nyse_ticker_json_link = 'https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/nyse/nyse_tickers.json'  # create variable for link to github with daily updated tickers from nyse
 nyse_stock_tickers = pd.read_json(nyse_ticker_json_link, typ='series')  # read the json file in pandas as a series since there is no column title
-nyse_stocks = nyse_stock_tickers.tolist() # convert set to list
+nyse_stocks = nyse_stock_tickers.tolist()  # convert set to list
 
 # Combine NASDAQ and NYSE tickers
 combined_tickers = nasdaq_stocks + nyse_stocks
@@ -187,9 +199,6 @@ try:
 # Handle errors related to the request, invalid JSON, or empty response
 except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
 
-    # Add an error message in Streamlit
-    import streamlit as st
-
     st.markdown("""
         <style>
             /* Keyframes for rotating the error icon */
@@ -201,7 +210,7 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
             /* Keyframes for sliding the error box in */
             @keyframes slideIn {
                 0% { transform: translateY(-100%); }
-                100% { transform: translateY(0); }
+            100% { transform: translateY(0); }
             }
     
             #error-message {
@@ -244,7 +253,7 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
             <div style="display: flex; align-items: center;">
                 <span class="error-icon">X</span>
                 <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
-                    An error occurred while fetching data - Too many calls have been made to the yahoo finance API. Please wait until tomorrow.
+                    An error occurred while fetching the data. This is likely due from updates to the data source api/package. Hold on tight - app maintenance is in place!
                 </span>
         </div>
     """, unsafe_allow_html=True)
@@ -295,17 +304,18 @@ print("todays stock metrics")
 print(stock_ratios)
 
 # Load the stock data based on the ticker selected in front end
-stock_data = load_data(selected_stock) # loads the selected ticker data (selected_stock)
+stock_data = load_data(selected_stock)  # loads the selected ticker data (selected_stock)
 print('todays stock info (stock_data df)')
 print(stock_data)
 
 # Provide load context and load ticker data
-data_load_state = st.text("loading data...") # displays the following text when loading the data
-data_load_state.empty() # changes the load text to done when loaded
+data_load_state = st.text("loading data...")  # displays the following text when loading the data
+data_load_state.empty()  # changes the load text to done when loaded
 
-# Add function to retreive latest close price for close price field, assign var:
+# Add function to get latest close price for close price field, assign var:
 # this will allow us to use this var for calculations later in the app if we don't have a current mkt price
 # Define A function to get the latest close price and its date:
+# Reset index to remove the MultiIndex and keep 'Date' as a column
 
 
 def last_close_price_field(stock_data):
@@ -323,17 +333,12 @@ def last_close_price_field(stock_data):
 
 # Create Variable for Last Close Price / Last Close Date:
 last_close_price, last_close_date = last_close_price_field(stock_data)
+
 # Remove the seconds time stamp from the date (the 00:00:00 formatted stamp)
 last_close_date = last_close_date.strftime('%Y-%m-%d')
 
-# Retrieve the Current Stock Price, Assign Var & Add to Sidebar:
-Current_Mkt_Price = si.get_live_price(selected_stock)  # pull price based on the stock selected
-
 # Create a var for current price that retrieves the last close price if the market price is unavailable:
-if Current_Mkt_Price is not None:
-    Current_Price = Current_Mkt_Price
-else:
-    Current_Price = last_close_price
+Current_Price = last_close_price
 
 # Round Current Price to 2 Decimal Points:
 Current_Price = round(Current_Price, 2)
@@ -1385,11 +1390,11 @@ with home_tab1:
 
                 # Calculate daily returns using adjusted closing price based on time window
                 if time_window == 'daily':
-                    stock_data['Return'] = stock_data['Adj Close'].pct_change()
+                    stock_data['Return'] = stock_data['Close'].pct_change()
                 elif time_window == 'monthly':
-                    stock_data['Return'] = stock_data['Adj Close'].resample('ME').ffill().pct_change()
+                    stock_data['Return'] = stock_data['Close'].resample('ME').ffill().pct_change()
                 elif time_window == 'yearly':
-                    stock_data['Return'] = stock_data['Adj Close'].resample('YE').ffill().pct_change()
+                    stock_data['Return'] = stock_data['Close'].resample('YE').ffill().pct_change()
                 else:
                     raise ValueError("Invalid time window. Choose from 'daily', 'monthly', or 'yearly'.")
 
@@ -1400,7 +1405,7 @@ with home_tab1:
                 hist_VaR_95 = sorted_returns.quantile(0.05)
 
                 # Calculate the VaR in dollars
-                current_adj_price = stock_data['Adj Close'].iloc[-1]
+                current_adj_price = stock_data['Close'].iloc[-1]
                 hist_VaR_95_dollars = hist_VaR_95 * current_adj_price
 
                 # Return both VaR in percentage and dollars
