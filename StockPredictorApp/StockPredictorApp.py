@@ -52,7 +52,7 @@ import sys
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.5 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.61 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
