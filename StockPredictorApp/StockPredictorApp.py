@@ -52,7 +52,7 @@ import sys
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.7 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.7.1 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
@@ -261,27 +261,50 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
     # Stop execution of any further script if the error occurs
     sys.exit()
 
-# Retrieve additional metrics from yahoo finance api
+# Retrieve additional metrics from Yahoo Finance API
 company_name = stock_info['longName']
-pe_ratio = stock_info.get('trailingPE', None)
-peg_ratio = stock_info.get('pegRatio', None)
-price_to_book = stock_info.get('priceToBook', None)
-debt_to_equity = stock_info.get('debtToEquity', None)
-dividend_yield = stock_info.get('dividendYield', None)
-price_to_sales = stock_info.get('priceToSalesTrailing12Months', None)
-roe = stock_info.get('returnOnEquity', None)
-quick_ratio = stock_info.get('quickRatio', None)
-current_ratio = stock_info.get('currentRatio', None)
-industry = stock_info.get('industry', None)
-sector = stock_info.get('sector', None)
+
+# Valuation Info
+pe_ratio = stock_info.get('trailingPE', None)  # PE Ratio (Price to Earnings)
+peg_ratio = stock_info.get('pegRatio', None)  # PEG Ratio (Price to Earnings Growth)
+price_to_book = stock_info.get('priceToBook', None)  # Price to Book Ratio (Stock Price / Book Value per Share)
+price_to_sales = stock_info.get('priceToSalesTrailing12Months', None)  # Price to Sales Ratio (Market Price per Share / Revenue per Share)
+
+# Profitability / Liquidity / Health
+quick_ratio = stock_info.get('quickRatio', None)  # Quick Ratio (Current Assets excluding Inventory / Current Liabilities)
+current_ratio = stock_info.get('currentRatio', None)  # Current Ratio (Current Assets / Current Liabilities)
+roe = stock_info.get('returnOnEquity', None)  # Return on Equity (Net Income / Shareholder's Equity)
+debt_to_equity = stock_info.get('debtToEquity', None)  # Debt-to-Equity Ratio (Total Liabilities / Shareholders' Equity)
+gross_profit = stock_info.get('grossProfits', None)  # Gross Profit (Revenue - Cost of Goods Sold)
+net_income = stock_info.get('netIncomeToCommon', None)  # Net Income Available to Common Shareholders
+net_profit_margin = stock_info.get('profitMargins', None)  # Net Profit Margin (Net Income / Revenue)
+
+# Market Ownership
+shares_outstanding = stock_info.get('sharesOutstanding', None)  # Number of shares outstanding
+enterprise_value = stock_info.get('enterpriseValue', None)  # Enterprise Value (Total Value of the Company)
+
+# Dividend Info
+dividend_yield = stock_info.get('dividendYield', None)  # Dividend Yield (Annual Dividend / Stock Price)
+dividend_rate = stock_info.get('dividendRate', None)  # Annual Dividend Payment Per Share
+
+# Market Data Info
+previous_close = stock_info.get('previousClose', None)  # Previous Day's Closing Price
+regular_market_price = stock_info.get('regularMarketPrice', None)  # Current Market Price
+regular_market_day_low = stock_info.get('regularMarketDayLow', None)  # Low Price for the Current Day
+regular_market_day_high = stock_info.get('regularMarketDayHigh', None)  # High Price for the Current Day
+regular_market_volume = stock_info.get('regularMarketVolume', None)  # Trading Volume for the Current Day
+regular_market_open = stock_info.get('regularMarketOpen', None)  # Opening Price for the Current Day
+day_range = stock_info.get('dayRange', None)  # Range between Low and High Prices for the Day
+fifty_two_week_range = stock_info.get('fiftyTwoWeekRange', None)  # 52-week Price Range
+industry = stock_info.get('industry', None)  # Industry of the stock
+sector = stock_info.get('sector', None)  # Sector of the stock
 market_cap = stock_info.get('marketCap', None)  # Market Capitalization
 beta = stock_info.get('beta', None)  # Stock Beta (volatility)
 earnings_date = stock_info.get('earningsDate', None)  # Next earnings date
-shares_outstanding = stock_info.get('sharesOutstanding', None)  # Number of shares outstanding
-last_dividend = stock_info.get('lastDividendValue', None)  # Last dividend value
 
 # Create a DataFrame to store the ratios for the selected ticker
 stock_ratios = pd.DataFrame({
+    'Company Name': [company_name],
     'PE Ratio': [pe_ratio],
     'PEG Ratio': [peg_ratio],
     'Price-to-Book': [price_to_book],
@@ -297,7 +320,19 @@ stock_ratios = pd.DataFrame({
     'Beta': [beta],
     'Earnings Date': [earnings_date],
     'Shares Outstanding': [shares_outstanding],
-    'Last Dividend': [last_dividend]
+    'Gross Profit': [gross_profit],
+    'Net Income': [net_income],
+    'Net Profit Margin': [net_profit_margin],
+    'Enterprise Value': [enterprise_value],
+    'Dividend Rate': [dividend_rate],
+    'Previous Close': [previous_close],
+    'Regular Market Price': [regular_market_price],
+    'Regular Market Day Low': [regular_market_day_low],
+    'Regular Market Day High': [regular_market_day_high],
+    'Regular Market Volume': [regular_market_volume],
+    'Regular Market Open': [regular_market_open],
+    'Day Range': [day_range],
+    '52-Week Range': [fifty_two_week_range]
 })
 
 print("todays stock metrics")
@@ -792,7 +827,7 @@ with home_tab1:
 
         # Within sh_col1, create two columns:
         with sh_col1:
-                sh_col1.write('Stock Metrics:')
+                sh_col1.write('Key Metrics:')
                 sh_col1 = st.container(border=True, height=489)
                 with sh_col1:
                     sh_col1_1, sh_col1_2 = sh_col1.columns(2)
@@ -800,46 +835,56 @@ with home_tab1:
                     # run if statement to check there is data available today first:
                     if not stock_data.empty:
 
-                        # Create a variable for Open Price & extract the data for today if available:
-                        today_open = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Open']
+                        # Check if data is available for the field today
+                        if regular_market_price is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Current Price:", value="$" + str(round(regular_market_price, 2)))  # round # to 2 decimal points and make a string
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Current Price: {NA}")
 
                         # Check if data is available for the field today
-                        if not today_open.empty:
-                            today_open = today_open.iloc[0]
+                        if regular_market_open is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_1.metric(label="Today's Open Price:", value="$" + str(round(today_open, 2))) # round # to 2 decimal points and make a string
+                            sh_col1_1.metric(label="Today's Open Price:", value="$" + str(round(regular_market_open, 2)))  # round # to 2 decimal points and make a string
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Today's Open Price: {NA}")
-
 
                         # Add Latest Close Price:
                         # Note: we already set a var for latest close price in the load data section of the app
                         if last_close_price is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_2.metric(label=f"Last Close Price (as of {last_close_date}):", value="$" + str(round(last_close_price, 2)))
+                            sh_col1_2.metric(label=f"Last Close Price ({last_close_date}):", value="$" + str(round(last_close_price, 2)))
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Last Close Price: {NA}")
 
+                        # Add Trade Volume:
+                        if regular_market_volume is not None:
+                            regular_market_volume = "{:,}".format(round(regular_market_volume, 2))  # adds commas
+                            sh_col1_2.metric(label=f"Today's Trade Volume:", value=str(regular_market_volume))
 
-                        # Create a variable for Trade Volume & extract the data for today if available:
-                        today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
+                        # If variable from info is missing, check if we can get from history table
+                        elif regular_market_volume is None:
 
-                        # Check if data is available for the field today and format with commas
-                        if not today_vol.empty:
+                            # create variable to pull latest vol from history table
+                            today_vol = stock_data.loc[stock_data['Date'] == today.strftime('%Y-%m-%d'), 'Volume']
                             today_vol = today_vol.iloc[0]
+
                             # Format trade volume number with commas for thousands separator
-                            today_vol = "{:,.2f}".format(today_vol)
+                            today_vol = "{:,.2f}".format(regular_market_volume)
+
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_2.metric(label="Today's Trade Volume:", value=str(today_vol))
+
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Today's Trade Volume: {NA}")
 
-
                         # Create a variable for PE ratio & extract the data for today if available:
                         today_pe = pe_ratio
+
                         # Check if data is available for the field today
                         if today_pe is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -852,6 +897,7 @@ with home_tab1:
 
                         # Create a variable for PEG ratio & extract the data for today if available:
                         today_peg = peg_ratio
+
                         # Check if data is available for the field today
                         if today_peg is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -864,6 +910,7 @@ with home_tab1:
 
                         # Create a variable for Price-to-Book ratio & extract the data for today if available:
                         today_PB_ratio = price_to_book
+
                         # Check if data is available for the field today
                         if today_PB_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -872,28 +919,35 @@ with home_tab1:
                         # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Price-to-Book: {NA}")
 
-
                         # Create a variable for Debt-to-Equity ratio & extract the data for today if available:
                         today_DE_ratio = debt_to_equity
+
                         # Check if data is available for the field today
                         if today_DE_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio, 2)))
+                            sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio, 2)) + '%')
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Debt-to-Equity: {NA}")
 
-
                         # Create a variable for Dividend Yield ratio & extract the data for today if available:
                         today_DY_ratio = dividend_yield
+
                         # Check if data is available for the field today
                         if today_DY_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio * 100, 4)) + "%")
+                            sh_col1_1.metric(label="Dividend Yield:", value=str(round(today_DY_ratio, 2)) + "%")
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Dividend Yield: {NA}")
 
+                        # Check if data is available for the field today
+                        if beta is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Beta:", value=str(round(beta, 2)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Beta: {NA}")
 
                         # Create a variable for Price-to-Sales ratio & extract the data for today if available:
                         today_PS_ratio = price_to_sales
@@ -904,9 +958,9 @@ with home_tab1:
                         else:
                             sh_col1_2.warning(f"Price-to-Sales: {NA}")
 
-
                         # Create a variable for ROE ratio & extract the data for today if available:
                         today_ROE_ratio = roe
+
                         # Check if data is available for the field today
                         if today_ROE_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -915,9 +969,9 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"ROE Ratio: {NA}")
 
-
                         # Create a variable for Current Ratio & extract the data for today if available:
                         today_CR_ratio = current_ratio
+
                         # Check if data is available for the field today
                         if today_CR_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -926,9 +980,9 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Current Ratio: {NA}")
 
-
                         # Create a variable for Quick Ratio & extract the data for today if available:
                         today_QR_ratio = quick_ratio
+
                         # Check if data is available for the field today
                         if today_QR_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
@@ -937,26 +991,38 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Quick Ratio: {NA}")
 
-
-                        # Create a variable for Quick Ratio & extract the data for today if available:
+                        # Get Dividend Rate & extract the data for today if available:
                         # Check if data is available for the field today
-                        if sector is not None:
+                        if dividend_rate is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1.metric(label="Sector:", value=str(sector))
+                            sh_col1_2.metric(label="Dividend Rate (Annual):", value='$' + str(round(dividend_rate, 2)))
                         else:
                             # Write the data is not available for the field if missing
-                            sh_col1.warning(f"Sector: {NA}")
+                            sh_col1_2.warning(f"Dividend Rate (Annual): {NA}")
 
-
-                        # Create a variable for Quick Ratio & extract the data for today if available:
                         # Check if data is available for the field today
-                        if industry is not None:
+                        if net_profit_margin is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1.metric(label="Industry:", value=str(industry))
+                            sh_col1_2.metric(label="Net Profit Margin:", value=str(round(net_profit_margin * 100, 2)) + "%")
                         else:
                             # Write the data is not available for the field if missing
-                            sh_col1.warning(f"Industry: {NA}")
+                            sh_col1_2.warning(f"Net Profit Margin: {NA}")
 
+                        # Add Price Day Range:
+                        if fifty_two_week_range is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1.metric(label=f"52 Week Range:", value="$" + str(fifty_two_week_range))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1.warning(f"52 Week Range: {NA}")
+
+                        # Add Price Day Range:
+                        if enterprise_value is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1.metric(label=f"Enterprise Value:", value="$" + "{:,.0f}".format(round(enterprise_value, 0)))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1.warning(f"Enterprise Value: {NA}")
 
                     # if there is no data available at all for today, print no data available
                     else:
@@ -1023,8 +1089,25 @@ with home_tab1:
                     st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
                 plot_raw_data()
 
+        # Create a Dropdown for stock desc - Get desc from yfinance
+        stock_description = stock_info.get('longBusinessSummary', 'No description available')
+
+        # Function to split the description into paragraphs every 3 sentences
+        def split_into_paragraphs(text, sentence_count=4):
+            sentences = [s.strip() for s in text.split('.') if s.strip()]
+            paragraphs = [". ".join(sentences[i:i + sentence_count]) + '.' for i in range(0, len(sentences), sentence_count)]
+            return paragraphs
+
+        # Get the paragraphs by splitting the stock description into chunks of 3 sentences
+        paragraphs = split_into_paragraphs(stock_description, 4)
+
+        # Wrap in dropdown visual
+        with st.expander(f"{company_name} Overview - {sector} / {industry}"):
+            for paragraph in paragraphs:
+                st.markdown(paragraph)
+
         # Price Trend Section (Long Term Price Trend)
-        sh_c.write("Price Trend History- Long Term (Limit 10 Years):")
+        sh_c.write("Price Trend History - Long Term (Limit 10 Years):")
 
         # Add a Yearly Data Trend visual to container:
         with sh_c.container(border=True):
@@ -1121,7 +1204,7 @@ with home_tab1:
                     ))
 
                     # Update layout
-                    fig.layout.update(xaxis_rangeslider_visible=True, template='plotly_white')
+                    fig.layout.update(title='Moving Averages - One Year', xaxis_rangeslider_visible=True, template='plotly_white')
                     st.plotly_chart(fig, use_container_width=True)  # writes the graph to app and fixes width to the container width
                 plot_mov_avg_data()
 
@@ -1325,7 +1408,7 @@ with home_tab1:
                     st.plotly_chart(fig, use_container_width=True)
 
         # Add a container for short-term trend section footnote expander:
-        with sh_c.container(border=True):
+        with sh_c.container():
 
             # write expander to app
             with st.expander("Leveraging Short Term Models for Short-Term Buy/Sell/Hold Actions*"):  # add footnote drop-down
