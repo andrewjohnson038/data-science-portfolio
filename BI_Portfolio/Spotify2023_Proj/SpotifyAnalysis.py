@@ -17,10 +17,6 @@ import kaggle
 # import numbpy library (used to remove whitespace in this workflow)
 import numpy as np
 
-
-# Run this command if you don't want other users of your system to have read access to your credentials
-# chmod 600 /Users/andrewjohnson/.kaggle/kaggle.json
-
 # import the Kaggle api
 from kaggle.api.kaggle_api_extended import KaggleApi
 
@@ -42,7 +38,7 @@ path = "./spotify-2023.csv"
 
 # Read the csv file as a pandas df
 # The file being used is not encoded in UTF-8, which is needed to have the csv be encoded to UTF-8. It is encoded in ISO-8859-1, so we will need to change that
-Spotify2023 = pd.read_csv(path, encoding='ISO-8859-1') #csv is downloaded in ISO-8859-1 format
+Spotify2023 = pd.read_csv(path, encoding='ISO-8859-1')  #csv is downloaded in ISO-8859-1 format
 Spotify2023.to_csv(path, encoding='utf-8', index=False)
 
 
@@ -70,6 +66,7 @@ months_dictionary = {
     '10': 'October',
     '11' : 'November',
     '12' : 'December'}
+
 # Change values to a string
 Spotify2023.released_month = Spotify2023.released_month.astype('str')
 
@@ -77,7 +74,7 @@ Spotify2023.released_month = Spotify2023.released_month.astype('str')
 Spotify2023.released_month = Spotify2023.released_month.map(months_dictionary)
 
 # View final dataset to check data cleansing done
-print(Spotify2023.head(50).to_string()) #limit to only viewing 50 rows
+print(Spotify2023.head(50).to_string())  # limit to only viewing 50 rows
 
 # When checking the dataset, I noticed there are some null values in the "key" column. Let's fill these as we will be doing analysis on most popular keys in our visual.
 # For our visual, we will only be using songs released in 2023; let's reduce the sample size to songs released in 2023
@@ -88,7 +85,7 @@ Key_Nulls_2023 = Tracks_2023['key'].isnull()
 print(Tracks_2023[Key_Nulls_2023].to_string())
 
 # Print the count of rows to see count of tracks with a null key value
-print("Number of Track w/ a Null Value:", len(Tracks_2023[Key_Nulls_2023])) #len function counts the values
+print("Number of Track w/ a Null Value:", len(Tracks_2023[Key_Nulls_2023]))  # len function counts the values
 
 # There are only 16 tracks released in 2023 that have a null key value. Considering the # of nulls is so low, the easiest method would be to fill the nulls manually. Let's do that in this next step:
 # Fill null values manually in the 'key' column for specified rows with different values
@@ -154,13 +151,12 @@ Spotify2023_artists = Spotify2023_artists.drop(columns=[
     'speechiness_%'])
 
 # Section 3: Check that the new df delimited and columns dropped properly.
-print(Spotify2023_artists.head(50).to_string()) # This limits to viewing only 50 rows of the df
+print(Spotify2023_artists.head(50).to_string())  # This limits to viewing only 50 rows of the df
 
 # To view the whole output, use: print(Spotify2023_artists.to_string())
-# Looks good. On to next step.
+# Looks good.
 
 # Section 4: Deduplicate Artists & Sum the Streams
-
 # First, let's check that 'streams' was brought in as an integer and not an object:
 
 # Check if 'streams' is an integer:
@@ -181,7 +177,7 @@ else:
 print(Spotify2023_artists['streams'].info())
 
 # Data Type came back as an object; Will need to change the dtype to an integer to run a sum function
-    # Spotify2023_artists['streams'] = Spotify2023_artists['streams'].astype(int)
+ # Spotify2023_artists['streams'] = Spotify2023_artists['streams'].astype(int)
 # When running the above, we are getting an error that there are non-numerical values in the list; Let's remove these
 
 # Replace non-numeric values with NaN
@@ -226,7 +222,7 @@ print(Spotify2023_artists)  # review changes
 
 # Let's reduce this table to the top 100 artists for our visual in Tableau
 Spotify2023_artists = Spotify2023_artists.sort_values(by='a.artist_rank') # sort by artist rank
-Spotify2023_artists = Spotify2023_artists.head(100) # head = Select the first 100 rows
+Spotify2023_artists = Spotify2023_artists.head(100)  # head = Select the first 100 rows
 
 # Section 7: Write the df as a new tab in the excel sheet
 
