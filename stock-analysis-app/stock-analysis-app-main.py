@@ -2374,7 +2374,7 @@ with home_tab1:
                     # - font-size: clamp() - Responsive font sizing that scales between minimum and maximum values
                     # - white-space: nowrap - Prevents text from wrapping
                     # - text-overflow: ellipsis - Shows ellipsis (...) for truncated text
-                    # - max-width: 60% - Limits width to prevent overflow on small screens
+                    # - max-width: 80% - Limits width to prevent overflow on small screens
 
                     st.markdown(f"""
                         <div style='
@@ -2403,7 +2403,7 @@ with home_tab1:
                                 white-space: nowrap;
                                 overflow: hidden;
                                 text-overflow: ellipsis;
-                                max-width: 60%;
+                                max-width: 80%;
                             '>
                                 {signal}: {indicator}
                             </div>
@@ -2458,7 +2458,7 @@ with home_tab1:
                             white-space: nowrap;
                             overflow: hidden;
                             text-overflow: ellipsis;
-                            max-width: 60%;
+                            max-width: 80%;
                         '>
                             {signal}
                         </div>
