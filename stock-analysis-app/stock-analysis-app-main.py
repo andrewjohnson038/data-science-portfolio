@@ -2628,7 +2628,7 @@ with home_tab1:
         with sh_c.container(border=True):
             # Add DF with industry averages
             if not industry_avg_df.empty:
-                st.dataframe(industry_avg_df, hide_index=False, use_container_width=True)
+                st.dataframe(industry_avg_df, hide_index=True, use_container_width=True)
 
 
 
