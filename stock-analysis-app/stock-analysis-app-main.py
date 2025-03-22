@@ -2341,19 +2341,19 @@ with home_tab1:
 
                     # Logic to decide if it's a good buy or sell based on the crossover
                     if sma_percentage_difference > 5:
-                        signal = "Bullish Trend Signal"
+                        signal = "Bullish Momentum"
                         color = "rgba(0, 177, 64, 0.6)"  # Green color for Buy
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "BUY"
                         indicator = f"{sma_percentage_difference:.2f}% Price Differential*"
                     if sma_percentage_difference < -5:
-                        signal = "Bearish Trend Signal"
+                        signal = "Bearish Momentum"
                         color = "rgba(244, 67, 54, 0.6)"  # Red color for Sell
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "SELL"
                         indicator = f"{sma_percentage_difference:.2f}% Price Differential*"
                     else:
-                        signal = "Neutral Market Momentum"
+                        signal = "Neutral Momentum"
                         color = "rgba(255, 255, 0, 0.6)"  # Yellow color for Neutral
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "HOLD"
