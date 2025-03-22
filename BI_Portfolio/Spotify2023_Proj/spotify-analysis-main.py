@@ -38,7 +38,7 @@ with zipfile.ZipFile(zipfile_name, 'r') as file:
     file.extractall()
 
 # Set path name for csvfile
-path = "./spotify-2023.csv"
+path = "./spotify-2023-ingested-data.csv"
 
 # Read the csv file as a pandas df
 # The file being used is not encoded in UTF-8, which is needed to have the csv be encoded to UTF-8. It is encoded in ISO-8859-1, so we will need to change that
@@ -115,7 +115,7 @@ print(Spotify2023.at[12, 'key']) # checking song key was filled
 # Success: We can now write the df to excel for visualization
 
 # Write the final df to an excel sheet for visualization
-Spotify2023.to_excel('Spotify2023_TableauProj.xlsx', sheet_name='Spotify2023_stats')
+Spotify2023.to_excel('spotify-output-data.xlsx', sheet_name='Spotify2023_stats')
 
 # Section 1:
 # For the artists tab in Tableau, I want to create a new tab in the excel sheet (new table) where songs with multiple artists are split into their own rows so that we can rank individual artists by streams
@@ -231,7 +231,7 @@ Spotify2023_artists = Spotify2023_artists.head(100) # head = Select the first 10
 # Section 7: Write the df as a new tab in the excel sheet
 
 # Create a Pandas Excel writer using XlsxWriter as the engine
-with pd.ExcelWriter('Spotify2023_TableauProj.xlsx', engine='openpyxl', mode='a') as writer:
+with pd.ExcelWriter('spotify-output-data.xlsx', engine='openpyxl', mode='a') as writer:
 
     # Description for the code above^: This is creating a context manager using the with statement to open an Excel file for writing or appending data using Pandas
     # mode='a' stands for "append": This indicates we are appending the excel sheet
