@@ -30,7 +30,7 @@ if os.path.isdir(kaggle_path):
 
         # Construct a relative path based on the current working directory
         project_root = os.getcwd()  # Gets the current working directory
-        sales_proj_csv = f'{project_root}/US_Regional_Sales_Data.csv'
+        sales_proj_csv = f'{project_root}/us_reg_sales_ingestion_file.csv'
 
         # add dataset back as a csv in the IDE dir to push to git for reference
         orders_tbl.to_csv(sales_proj_csv, encoding='utf-8', index=False)
@@ -61,7 +61,7 @@ orders_tbl['Unit Cost'] = pd.to_numeric(orders_tbl['Unit Cost'])
 print(orders_tbl.dtypes)
 
 # Convert df to excel for Tableau
-orders_tbl.to_excel('US_Regional_Sales_Data.xlsx', sheet_name='orders_tbl')
+orders_tbl.to_excel('us_regional_sales_output_file.xlsx', sheet_name='orders_tbl')
 
 # Add in ref tables for customers, products, and sales teams
 customers_tbl = orders_tbl[['_CustomerID']].drop_duplicates().reset_index(drop=True)  # drop=true creates a new index
@@ -158,7 +158,7 @@ print("Data Types (after):")
 print(salesteam_tbl.dtypes, customers_tbl.dtypes, products_tbl.dtypes, orders_tbl.dtypes)
 
 # Add tables as new tab in Excel sheet
-with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a') as writer:
+with pd.ExcelWriter('us_regional_sales_output_file.xlsx', engine='openpyxl', mode='a') as writer:
     customers_tbl.to_excel(writer, sheet_name='customers_tbl', index=True)
     salesteam_tbl.to_excel(writer, sheet_name='salesteam_tbl', index=True)
     products_tbl.to_excel(writer, sheet_name='products_tbl', index=True)
@@ -210,7 +210,7 @@ salesbystate_vw = salesbystate_vw.sort_values(by='state').reset_index(drop=True)
 print(salesbystate_vw)
 
 # Add salesbystate_vw as new tab in Excel sheet
-with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a') as writer:
+with pd.ExcelWriter('us_regional_sales_output_file.xlsx', engine='openpyxl', mode='a') as writer:
     salesbystate_vw.to_excel(writer, sheet_name='salesbystate_vw', index=True)
 
 # the Orders table currently does not have sales by team member - let's amend members to the core table
@@ -232,6 +232,6 @@ orders_tbl['_SalesTeamMemID'] = orders_tbl.apply(assign_sales_members_to_orders_
 print(orders_tbl)
 
 # Need to now update the orders table in the excel sheet with newly added members column
-with pd.ExcelWriter('US_Regional_Sales_Data.xlsx', engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('us_regional_sales_output_file.xlsx', engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     # Update the specific tab with the modified data
     orders_tbl.to_excel(writer, sheet_name='orders_tbl', index=False)

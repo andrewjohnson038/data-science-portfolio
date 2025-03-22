@@ -69,7 +69,7 @@ metric_scores_df = melted_df
 print(metric_scores_df)
 
 # Write the DataFrame to an Excel file
-file_path = './financial_products.xlsx'
+file_path = './financial_products_output_file.xlsx'
 
 with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:  # 'a' for append excel sheet
 

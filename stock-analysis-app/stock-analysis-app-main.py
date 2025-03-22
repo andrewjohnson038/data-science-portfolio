@@ -13,7 +13,6 @@ import streamlit as st
 # import yfinance library (used to retrieve financial data from yahoo finance)
 import yfinance as yf
 # import live pricing from yahoo finance
-from yahoo_fin import stock_info as si
 # import prophet library (prophet is an open source time series analysis module we will use with plotly to analyze and predict our stock data)
 from prophet import Prophet
 from prophet.plot import plot_plotly
@@ -29,10 +28,15 @@ import matplotlib.pyplot as plt
 from groq import Groq
 # import lib for applying exponential smoothing line
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing
+# import Beautiful Soup for Web Scraping
+from bs4 import BeautifulSoup
 
 import requests
 import json
 import sys
+
+# for alpha vantage api
+alpha_vantage_key = st.secrets.get("Alpha_Vantage_API_Key")
 
 
 # Note: in order to view the app on your local host, you will need run the following code on your terminal: streamlit run [insert location of file here {ex: %/stockpredictorapp.py}]
@@ -40,7 +44,8 @@ import sys
 
 
 
-
+# Note: stock_data var = historical data of the stock over 10 years / stock_info var = stock metrics as of current date
+# Note: to load in historical data over different time periods, you can call the load_data function that's set
 
 
 
@@ -52,7 +57,7 @@ import sys
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
-st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.7.1 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
+st.sidebar.markdown("<div style='text-align: center; padding: 20px;'>App Version: 1.3.7.2 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>", unsafe_allow_html=True) # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
 st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 
@@ -94,6 +99,10 @@ print("\n 10 Yrs Ago Date:")
 start_date = today.replace(year=today.year - 10)  # retrieve data starting on this date 10 years ago
 print(start_date)
 
+print("\n 10 Yrs Ago Date:")
+start_date_three_y_ago = today.replace(year=today.year - 3)  # retrieve data starting on this date 10 years ago
+print(start_date)
+
 # Get Current Year #
 Current_Year = datetime.now().year
 print("\n CURRENT Year:")
@@ -119,11 +128,187 @@ print("\n YOY:")
 one_year_ago = today - timedelta(days=365)
 print(one_year_ago)
 
+# Get three years from today
+three_years_ago = today - timedelta(days=3*365)
+
 # --------------------------------------------------- Data: Set Time Parameters -----------------------------------------------------------------
 
 
+# --------------------------------------------------- Animation Variables -----------------------------------------------------------------
+
+# Function to generate the CSS for the cogwheel with adjustable size
+def cog_wheel_css(size=30):
+    return f"""
+    <style>
+    /* CSS for cog wheel animation */
+    @keyframes rotate {{
+      from {{
+        transform: rotate(0deg);
+      }}
+      to {{
+        transform: rotate(360deg);
+      }}
+    }}
+    
+    .cog-container {{
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 50%;
+    }}
+    
+    .cog {{
+      width: {size}px;  /* Adjustable size */
+      height: {size}px; /* Adjustable size */
+      border-radius: 50%;
+      border: 5px solid transparent;
+      border-top-color: #FF6347; /* Set to Streamlit's red color */
+      animation: rotate 1s linear infinite;
+    }}
+    </style>
+    """
+
+# Function to generate the HTML for the cogwheel
+def cog_html():
+    return """
+    <div class="cog-container">
+      <div class="cog"></div>
+    </div>
+    """
+
+# Create warning sign animation for error handling
+def create_warning_animation(size_factor=1.0):
+    """
+    Creates a minimal CSS/HTML animation of an exclamation point warning sign with Streamlit red colors.
+
+    Parameters:
+    size_factor (float): Multiplier for the size of the animation. Default is 1.0.
+                         Values larger than 1.0 make the animation bigger, smaller than 1.0 make it smaller.
+
+    Returns:
+    tuple: A tuple containing (css_code, html_code) that can be used with st.markdown()
+    """
+    # Calculate size-adjusted values
+    base_size = 120 * size_factor
+    triangle_size = 100 * size_factor  # Keeping variable name but using for exclamation
+    exclamation_height = 60 * size_factor
+    exclamation_width = 12 * size_factor
+    exclamation_dot_size = 12 * size_factor
+    pulse_size = 90 * size_factor  # Smaller to prevent overlap
+    font_size = 18 * size_factor
+
+    # Define the CSS with size-adjusted values
+    warning_animation_css = f"""
+    <style>
+        .warning-container {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            text-align: center;
+            max-width: 100%;
+        }}
+        
+        .warning-sign {{
+            position: relative;
+            width: {base_size}px;
+            height: {base_size}px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        
+        .exclamation-container {{
+            position: relative;
+            width: {exclamation_width * 2}px;
+            height: {exclamation_height + exclamation_dot_size + 5 * size_factor}px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }}
+        
+        .exclamation {{
+            width: {exclamation_width}px;
+            height: {exclamation_height}px;
+            background-color: #FF4B5C; /* Streamlit Red */
+            border-radius: {4 * size_factor}px;
+        }}
+        
+        .exclamation-dot {{
+            width: {exclamation_dot_size}px;
+            height: {exclamation_dot_size}px;
+            background-color: #FF4B5C; /* Streamlit Red */
+            border-radius: 50%;
+            margin-top: {5 * size_factor}px;
+        }}
+        
+        .pulse {{
+            position: absolute;
+            border: {3 * size_factor}px solid rgba(255, 75, 92, 0.5); /* Streamlit Red with opacity */
+            width: {pulse_size}px;
+            height: {pulse_size}px;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-out infinite;
+            opacity: 0;
+            z-index: 1;
+        }}
+        
+        @keyframes pulse {{
+            0% {{
+                transform: scale(0.8);
+                opacity: 0.6;
+            }}
+            100% {{
+                transform: scale(1.5);
+                opacity: 0;
+            }}
+        }}
+        
+        .blink {{
+            animation: blink 1s ease-in-out infinite alternate;
+        }}
+        
+        @keyframes blink {{
+            0% {{
+                opacity: 1;
+            }}
+            100% {{
+                opacity: 0.5;
+            }}
+        }}
+        
+        .error-message {{
+            font-size: {font_size}px;
+            font-weight: 600;
+            line-height: 1.5;
+            color: #FF4B5C; /* Streamlit Red */
+            max-width: {600 * size_factor}px;
+            text-align: center;
+        }}
+    </style>
+    """
+
+    # Define the HTML
+    warning_animation_html = """
+    <div class="warning-container">
+        <div class="warning-sign">
+            <div class="pulse"></div>
+            <div class="exclamation-container blink">
+                <div class="exclamation"></div>
+                <div class="exclamation-dot"></div>
+            </div>
+        </div>
+    </div>
+    """
+
+    return warning_animation_css, warning_animation_html
 
 
+# --------------------------------------------------- Animation Variables -----------------------------------------------------------------
 
 
 
@@ -136,8 +321,8 @@ print(one_year_ago)
 # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
 
 @st.cache_data()
-def load_data(ticker):  # Define the "load data" function
-    stock_data = yf.download(ticker, start=start_date, end=today)  # Fetch data from Yahoo Finance
+def load_data(ticker, st_dt=start_date, end_dt=today):  # Define the "load data" function
+    stock_data = yf.download(ticker, start=st_dt, end=end_dt)  # Fetch data from Yahoo Finance
 
     # Check the index structure before resetting
     print("Current stock_data index:")
@@ -158,6 +343,21 @@ def load_data(ticker):  # Define the "load data" function
 
     # Merge and fill missing data with the last available values
     stock_data = pd.merge(date_range_df, stock_data, on='Date', how='left').ffill()  # Merge and forward fill
+
+    # Convert 'Date' column to datetime (if necessary)
+    stock_data['Date'] = pd.to_datetime(stock_data['Date'])
+
+    # Calculate the daily price change (Close - previous day's Close)
+    stock_data['Price Change'] = stock_data['Close'].diff()
+
+    # Replace NaN in 'Price Change' with 0
+    stock_data['Price Change'].fillna(0, inplace=True)
+
+    # Calculate the percentage change in price
+    stock_data['Percentage Change'] = (stock_data['Price Change'] / stock_data['Close'].shift(1)) * 100
+
+    # Replace NaN in 'Price Change' with 0
+    stock_data['Percentage Change'].fillna(0, inplace=True)
 
     return stock_data  # Return the cleaned and filled data
 
@@ -188,7 +388,7 @@ stocks = filtered_tickers
 # create a dropdown box for our stock options (First is the dd title, second is our dd options)
 selected_stock = st.sidebar.selectbox("Select Stock:", stocks)
 
-# Fetch Stock Info and handle errors
+# Error handling: # Fetch Stock Info and handle errors
 try:
     stock_info = yf.Ticker(selected_stock).info  # Try to fetch stock information
 
@@ -198,64 +398,26 @@ try:
 
 # Handle errors related to the request, invalid JSON, or empty response
 except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
+    st.markdown(cog_wheel_css, unsafe_allow_html=True)  # Include cogwheel CSS
 
-    st.markdown("""
-        <style>
-            /* Keyframes for rotating the error icon */
-            @keyframes rotate {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-    
-            /* Keyframes for sliding the error box in */
-            @keyframes slideIn {
-                0% { transform: translateY(-100%); }
-            100% { transform: translateY(0); }
-            }
-    
-            #error-message {
-                background: #f8d7da; 
-                color: #721c24; 
-                padding: 20px 30px; 
-                border-radius: 12px; 
-                font-family: 'Roboto', sans-serif; 
-                box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.1); 
-                display: flex; 
-                align-items: center; 
-                justify-content: space-between; 
-                position: relative; 
-                animation: slideIn 0.5s ease-out;
-            }
-    
-            #error-message .error-icon {
-                font-size: 30px;
-                margin-right: 30px;
-                animation: rotate 3s infinite linear;
-            }
-    
-            #error-message .close-btn {
-                background: none; 
-                border: none; 
-                font-size: 24px; 
-                color: #721c24; 
-                cursor: pointer; 
-                font-weight: bold; 
-                transition: color 0.3s, transform 0.3s;
-            }
-    
-            #error-message .close-btn:hover {
-                color: #e63946;
-                transform: scale(1.1);
-            }
-        </style>
-    
-        <div id="error-message">
-            <div style="display: flex; align-items: center;">
-                <span class="error-icon">X</span>
-                <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
-                    An error occurred while fetching the data. This is likely due from updates to the data source api/package. Hold on tight - app maintenance is in place!
-                </span>
+    # Make sure cog_html is a string, not a function
+    cog_html_str = """
+    <div class="cogwheel">
+        <i class="fas fa-cog fa-spin fa-3x"></i>
+    </div>
+    """
+
+    st.markdown(f"""
+    <div id="error-message">
+        <div style="display: flex; align-items: center;">
+            <!-- Insert the cogwheel animation here -->
+            {cog_html_str}
+            <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
+                An error occurred while fetching the data. This is likely due from updates to the data source API/package. 
+                Hold on tight - app maintenance is in place!
+            </span>
         </div>
+    </div>
     """, unsafe_allow_html=True)
 
     # Stop execution of any further script if the error occurs
@@ -267,6 +429,28 @@ company_name = stock_info['longName']
 # Valuation Info
 pe_ratio = stock_info.get('trailingPE', None)  # PE Ratio (Price to Earnings)
 peg_ratio = stock_info.get('pegRatio', None)  # PEG Ratio (Price to Earnings Growth)
+
+# Function to get PEG ratio from Alpha Vantage (Usually missing from yfinance)
+def get_peg_from_alpha_vantage(ticker):
+    url = "https://www.alphavantage.co/query"
+    params = {
+        "function": "OVERVIEW",  # This is the correct function for overview data
+        "symbol": ticker,
+        "apikey": alpha_vantage_key  # Your API key
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+
+    # Return PEG Ratio if available, otherwise None
+    return data.get("PEGRatio", None)
+
+# If PEG ratio is missing, pull it from Alpha Vantage
+if peg_ratio is None:
+    peg_ratio = get_peg_from_alpha_vantage(selected_stock)  # note: metric comes as string from alphavantage
+else:
+    None
+
 price_to_book = stock_info.get('priceToBook', None)  # Price to Book Ratio (Stock Price / Book Value per Share)
 price_to_sales = stock_info.get('priceToSalesTrailing12Months', None)  # Price to Sales Ratio (Market Price per Share / Revenue per Share)
 
@@ -275,9 +459,16 @@ quick_ratio = stock_info.get('quickRatio', None)  # Quick Ratio (Current Assets 
 current_ratio = stock_info.get('currentRatio', None)  # Current Ratio (Current Assets / Current Liabilities)
 roe = stock_info.get('returnOnEquity', None)  # Return on Equity (Net Income / Shareholder's Equity)
 debt_to_equity = stock_info.get('debtToEquity', None)  # Debt-to-Equity Ratio (Total Liabilities / Shareholders' Equity)
+# if statement to divide doe by 100 without an error
+if debt_to_equity is not None:
+    debt_to_equity = debt_to_equity / 100
+else:
+    # Set to a default value if missing
+    debt_to_equity = None
 gross_profit = stock_info.get('grossProfits', None)  # Gross Profit (Revenue - Cost of Goods Sold)
 net_income = stock_info.get('netIncomeToCommon', None)  # Net Income Available to Common Shareholders
 net_profit_margin = stock_info.get('profitMargins', None)  # Net Profit Margin (Net Income / Revenue)
+yoy_revenue_growth = stock_info.get('revenueGrowth', None)  # get YOY revenue growth
 
 # Market Ownership
 shares_outstanding = stock_info.get('sharesOutstanding', None)  # Number of shares outstanding
@@ -301,6 +492,31 @@ sector = stock_info.get('sector', None)  # Sector of the stock
 market_cap = stock_info.get('marketCap', None)  # Market Capitalization
 beta = stock_info.get('beta', None)  # Stock Beta (volatility)
 earnings_date = stock_info.get('earningsDate', None)  # Next earnings date
+
+# ESG Score
+esg_score = stock_info.get('esgScore', None)  # ESG score for the stock (if available)
+
+# Analyst Summary
+analyst_recommendation_summary = stock_info.get('recommendationKey', 'No recommendation available')  # Get the recommendation summary
+
+# Get the cash flow statement
+cash_flow = yf.Ticker(selected_stock).cashflow
+
+# Extract the operating cash flow for the most recent year and the previous year
+try:
+    # Try to fetch the operating cash flow for the most recent year (current year) and previous year
+    operating_cash_flow_current_year = cash_flow.loc['Operating Cash Flow'][0]  # Latest year (most recent)
+    operating_cash_flow_previous_year = cash_flow.loc['Operating Cash Flow'][1]  # Previous year
+except (KeyError, IndexError):
+    # If data is not available, set both values to 0
+    operating_cash_flow_current_year = 0
+    operating_cash_flow_previous_year = 0
+
+# Calculate YoY Operating Cash Flow Growth
+if operating_cash_flow_previous_year == 0:
+    yoy_ocfg_growth = 0  # Or 0, or some other default value
+else:
+    yoy_ocfg_growth = ((operating_cash_flow_current_year - operating_cash_flow_previous_year) / operating_cash_flow_previous_year)
 
 # Create a DataFrame to store the ratios for the selected ticker
 stock_ratios = pd.DataFrame({
@@ -332,14 +548,20 @@ stock_ratios = pd.DataFrame({
     'Regular Market Volume': [regular_market_volume],
     'Regular Market Open': [regular_market_open],
     'Day Range': [day_range],
-    '52-Week Range': [fifty_two_week_range]
+    '52-Week Range': [fifty_two_week_range],
+    'YOY Revenue Growth': [yoy_revenue_growth],
+    'ESG Score': [esg_score],
+    'YOY Operating Cash Flow Growth': [yoy_ocfg_growth]
 })
 
-print("todays stock metrics")
+selected_industry = industry
+
+print("stock_ratios df")
 print(stock_ratios)
 
 # Load the stock data based on the ticker selected in front end
 stock_data = load_data(selected_stock)  # loads the selected ticker data (selected_stock)
+
 print('todays stock info (stock_data df)')
 print(stock_data)
 
@@ -379,6 +601,139 @@ Current_Price = last_close_price
 Current_Price = round(Current_Price, 2)
 print(Current_Price)
 
+
+# --------------- sharpe ratio
+# Add Sharpe Ratio field using historical data for risk assessment
+stock_data['Returns'] = stock_data['Close'].pct_change()  # pandas pct change method
+
+# Get Risk Free Rate using Ticker symbol for the 10-year U.S. Treasury Yield (^TNX)
+risk_free_rate_ticker = '^TNX'
+
+# Fetch data for the 10-year U.S. Treasury Yield
+rfr_data = yf.Ticker(risk_free_rate_ticker)
+
+# Get the latest closing price (which represents the yield)
+rfr_latest_yield = rfr_data.history(period="1d")['Close'].iloc[-1]
+
+# Convert the percentage to a decimal by dividing by 100, and round to 4 decimal places
+rfr_latest_yield = round(rfr_latest_yield / 100, 4)
+
+# Risk Free Rate (1 Yr current)
+risk_free_rate = rfr_latest_yield / 252  # approximate to two decimal points
+
+# Calculate excess returns (stock returns - risk-free rate)
+stock_data['Excess_Returns'] = stock_data['Returns'] - risk_free_rate
+
+# Calculate the annualized Sharpe ratio (assuming 252 trading days in a year)
+sharpe_ratio = np.sqrt(252) * stock_data['Excess_Returns'].mean() / stock_data['Excess_Returns'].std()
+
+# Round to two decimal points
+sharpe_ratio = round(sharpe_ratio, 2)
+# --------------- sharpe ratio
+
+
+
+
+
+# --------------- Retrieve Yahoo Finance Analyst Ratings / Grades
+# Error handling: # Fetch Analyst Info and handle errors
+try:
+    stock_analyst_info = yf.Ticker(selected_stock).analyst_price_targets  # Try to fetch stock information
+
+    # Check if the response is valid (not empty)
+    if not stock_analyst_info or "error" in stock_analyst_info:  # comes through as a list
+        raise ValueError("Received an empty or invalid response.")
+
+# Handle errors related to the request, invalid JSON, or empty response
+except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
+
+    # Use streamlit error handling message
+    st.error(f"Oops... A large portion of the data is missing for this ticker. Probably not worth analysing :)")
+
+    # Get the animation components with a custom size (e.g., 1.2x normal size)
+    css, html = create_warning_animation(size_factor=2)
+
+    # Add CSS for centering the animation
+    centered_css = css + """
+    <style>
+    .warning-animation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+    }
+    </style>
+    """
+
+    # Wrap the HTML in a div with the centering class
+    centered_html = f"""
+    <div class="warning-animation-container">
+        {html}
+    </div>
+    """
+
+    # Display the error animation
+    st.markdown(centered_css, unsafe_allow_html=True)
+    st.markdown(centered_html, unsafe_allow_html=True)
+
+    # Stop execution of any further script if the error occurs
+    st.stop()
+
+# Convert the dictionary into a DataFrame
+stock_analyst_info_df = pd.DataFrame(list(stock_analyst_info.items()), columns=["Metric", "Value"])
+# --------------- Retrieve Yahoo Finance Analyst Ratings / Grades
+
+
+
+
+
+# --------------- Retrieve Rating Agency Ratings / Grades
+# Error handling: Fetch Analyst Info and handle errors
+try:
+    # Fetch analyst recommendations
+    agency_analyst_info = yf.Ticker(selected_stock).get_recommendations()
+
+    # Check if DataFrame is valid and not empty
+    if agency_analyst_info.empty:  # comes through as a df when the method is called
+        raise ValueError("Received an empty or invalid response.")
+
+# Handle errors related to the request, invalid JSON, or empty response
+except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
+
+    # Use streamlit error handling message
+    st.error(f"Oops... A large portion of the data is missing for this ticker. Probably not worth analysing :)")
+
+    # Get the animation components with a custom size (e.g., 1.2x normal size)
+    css, html = create_warning_animation(size_factor=2)
+
+    # Add CSS for centering the animation
+    centered_css = css + """
+    <style>
+    .warning-animation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+    }
+    </style>
+    """
+
+    # Wrap the HTML in a div with the centering class
+    centered_html = f"""
+    <div class="warning-animation-container">
+        {html}
+    </div>
+    """
+
+    # Display the error animation
+    st.markdown(centered_css, unsafe_allow_html=True)
+    st.markdown(centered_html, unsafe_allow_html=True)
+
+    # Stop execution of any further script if the error occurs
+    st.stop()
+# --------------- Retrieve Rating Agency Ratings / Grades
+
+
 # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
 
 
@@ -386,6 +741,16 @@ print(Current_Price)
 
 
 
+
+
+
+
+# ------------------------------------------ Data: Load Copy of Trade History for the SPY to use for benchmarking ---------------------------------------
+
+# For Benchmarking Purposes, create a separate DF for SPY
+SPY_data = load_data("SPY")  # loads the selected ticker data (selected_stock)
+
+# ------------------------------------------ Data: Load Copy of Trade History for the SPY to use for benchmarking ---------------------------------------
 
 
 
@@ -398,13 +763,13 @@ print(Current_Price)
 
 # Get data from each available day of the current month through all years
 print("\n Current Month Yearly Historical Data:")
-ct_month_yrly_data = stock_data[stock_data['Date'].dt.month == Current_Month] # filters stock_data df to this month throughout all years
-print(ct_month_yrly_data) # check the df is pulling the correct data
+ct_month_yrly_data = stock_data[stock_data['Date'].dt.month == Current_Month]  # filters stock_data df to this month throughout all years
+print(ct_month_yrly_data)  # check the df is pulling the correct data
 
 # Get data from each available day of the current day through the all years
 print("\n Current Day Yearly Historical Data:")
-yearly_data = ct_month_yrly_data[ct_month_yrly_data['Date'].dt.day == Current_Day] # filters stock_data df to this day throughout all years
-print(yearly_data) # check the df is pulling the correct data
+yearly_data = ct_month_yrly_data[ct_month_yrly_data['Date'].dt.day == Current_Day]  # filters stock_data df to this day throughout all years
+print(yearly_data)  # check the df is pulling the correct data
 
 # Add column with Trend indicators to the yearly_data table
 # Make a copy of the DataFrame and reset its index so we can do a loop 1-10 for the indicators
@@ -434,6 +799,16 @@ yearly_data.at[0, 'Trend'] = '■'
 # check index reset and indicators added properly:
 print("\n Yearly History Table W/ Indicators:")
 print(yearly_data)
+
+
+# -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
+
+
+
+
+
+
+# ------------------------------------------------- Data: Add a data dataframe for moving averages --------------------------------------------------------
 
 # Add a df for moving average data
 moving_average_data = stock_data.copy()
@@ -467,19 +842,388 @@ def apply_exponential_smoothing(data, smoothing_level=0.001):  # .2 = default al
 
     return es_model_fit.fittedvalues  # Returns the smoothed data based on set alpha
 
-# ---------------------------------
-
-
-# For Benchmarking Purposes, create a separate DF for SPY
-SPY_data = load_data("SPY")  # loads the selected ticker data (selected_stock)
-
-
-# -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
+# ------------------------------------------------- Data: Add a data dataframe for moving averages --------------------------------------------------------
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+# -------------------------------- Data: Calculate and Create Variables for Historical / Risk Models ---------------------------------------
+
+# ---------- RSI
+rsi_data = stock_data.copy()
+def calculate_rsi(rsi_data, window=14):
+
+    # Calculate the difference in price from previous day
+    delta = rsi_data['Close'].diff()
+
+    # Get the positive gains (where delta is positive) and negative losses (where delta is negative)
+    gain = (delta.where(delta > 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of gains
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of losses
+
+    # Calculate the Relative Strength (RS)
+    rs = gain / loss
+
+    # Calculate the RSI
+    rsi = 100 - (100 / (1 + rs))
+
+    return rsi
+
+# Create Variable for RSI Values calling the RSI calculation function
+rsi_values = calculate_rsi(rsi_data)
+
+# Get the most recent RSI value (latest day)
+latest_rsi_value = rsi_values.iloc[-1]  # This is the RSI for the most recent day
+# ---------- RSI
+
+
+# ---------- MACD
+# Calculate MACD and Signal line to provide insight on short term trend momentum and strength
+def calculate_macd(df, fast=12, slow=26, signal=9):
+
+    # Calculate the Fast and Slow Exponential Moving Averages
+    df['EMA_fast'] = df['Close'].ewm(span=fast, adjust=False).mean()
+    df['EMA_slow'] = df['Close'].ewm(span=slow, adjust=False).mean()
+
+    # MACD Line = Fast EMA - Slow EMA
+    df['MACD'] = df['EMA_fast'] - df['EMA_slow']
+
+    # Signal Line = 9-period EMA of MACD
+    df['Signal'] = df['MACD'].ewm(span=signal, adjust=False).mean()
+
+    # Histogram = MACD - Signal
+    df['Histogram'] = df['MACD'] - df['Signal']
+
+    return df
+
+# Apply the MACD calculation to the stock data
+macd_data = calculate_macd(stock_data)
+
+# Filter MACD df to include only the last year of data
+macd_data = macd_data[moving_average_data['Date'] >= one_year_ago]
+# ---------- MACD
+
+# ---------- SMA
+# Calculate Simple Moving Average Variables
+price = moving_average_data['Close'].iloc[-1]  # Get the latest closing price
+sma_50 = moving_average_data['50_day_SMA'].iloc[-1]  # Latest 50-day SMA
+sma_200 = moving_average_data['200_day_SMA'].iloc[-1]  # Latest 200-day SMA
+
+# Calculate the difference between 50-day and 200-day SMA
+sma_price_difference = sma_50 - sma_200
+
+# Calculate the percentage difference between the 50-day and 200-day SMA
+sma_percentage_difference = (sma_price_difference / sma_200) * 100
+# ---------- SMA
+
+# ---------- Monte Carlo Simulation
+# create df for monte carlo simulation data set
+mc_sim_data = stock_data.copy()
+
+# Set parameters for simulation
+mc_simulations_num = 1000  # Number of simulated paths
+mc_days_num = 252  # Number of days to simulate (e.g., one year of trading days)
+
+# Calculate daily returns (log returns)
+mc_sim_data['Log Return'] = np.log(mc_sim_data['Close'] / mc_sim_data['Close'].shift(1))
+
+# Drop any missing values
+mc_sim_data = mc_sim_data.dropna()
+
+# Display the first few log returns
+mc_sim_data[['Close', 'Log Return']].head()
+
+# Calculate the mean and volatility from the historical data
+mc_mean_return = mc_sim_data['Log Return'].mean()
+mc_volatility = mc_sim_data['Log Return'].std()
+
+# Simulate future price paths
+mc_simulations = np.zeros((mc_simulations_num, mc_days_num))  # Shape should be (10000, 252)
+last_price = mc_sim_data['Close'].iloc[-1]  # Use the last closing price as the starting point
+
+# Ensure the simulation loop works without dimension issues
+for i in range(mc_simulations_num):
+
+    # Generate random returns for each day in the simulation
+    mc_random_returns = np.random.normal(mc_mean_return, mc_volatility, mc_days_num)
+
+    # Generate the simulated price path using compound returns
+    mc_price_path = last_price * np.exp(np.cumsum(mc_random_returns))  # price_path shape will be (252,)
+
+    # Assign the simulated price path to the simulations array
+    mc_simulations[i, :] = mc_price_path  # Assign to the i-th row of the simulations array
+
+# Convert the simulations to a DataFrame for easier visualization
+mc_simulated_prices = pd.DataFrame(mc_simulations.T, columns=[f'Simulation {i+1}' for i in range(mc_simulations_num)])
+
+# Check a sample of simulated paths
+print(mc_simulated_prices.head())
+
+# Debug checks
+print(mc_price_path.shape)  # should print (252,) each time
+print(mc_simulations.shape)  # should print (10000, 252)
+
+# Calculate the 5th, 50th, and 95th percentiles of the simulated paths
+mc_percentile_5 = mc_simulated_prices.quantile(0.05, axis=1)
+mc_percentile_50 = mc_simulated_prices.quantile(0.5, axis=1)
+mc_percentile_95 = mc_simulated_prices.quantile(0.95, axis=1)
+# ---------- Monte Carlo Simulation
+
+
+# ---------- Value at Risk (VAR)
+# Date Index:
+# The date index of the stock_data df is not in proper format to use the pandas resample() method.
+# Need to reset to datetime index
+
+# create a df for VaR data
+var_data = stock_data.copy()
+
+# Ensure the 'Date' column is in datetime format (if it isn't already)
+var_data['Date'] = pd.to_datetime(var_data['Date'], errors='coerce')
+
+# Set the 'Date' column as the index of the DataFrame
+var_data.set_index('Date', inplace=True)
+
+# Define function to calculate Historical VaR at 95% confidence level
+def calculate_historical_VaR(var_data, time_window='daily'):
+    """
+    Calculates the historical Value at Risk (VaR) at 95% confidence for a given time window (daily, monthly, yearly).
+
+    Parameters:
+    - stock_data: pandas DataFrame with historical stock data.
+    - time_window: str, the time window for VaR calculation ('daily', 'monthly', or 'yearly').
+
+    Returns:
+    - VaR value as a percentage and in dollars.
+
+    - resample() -> pandas method that allows for quickly changing the frequency of data using a letter
+                'D': Day
+                'W': Week
+                'M': Month
+                'A': Year
+                'H': Hour
+                'Q': Quarter
+                'B': Business day (excludes weekends)
+
+                ex:
+                df.resample(rule, how='mean', fill_method='ffill')
+
+                The errors='coerce' argument ensures that invalid or incorrect date formats are turned
+                into NaT (Not a Time) instead of raising errors.
+    """
+
+    # Calculate daily returns using adjusted closing price based on time window
+    if time_window == 'daily':
+        var_data['Return'] = var_data['Close'].pct_change()
+    elif time_window == 'monthly':
+        var_data['Return'] = var_data['Close'].resample('ME').ffill().pct_change()
+    elif time_window == 'yearly':
+        var_data['Return'] = var_data['Close'].resample('YE').ffill().pct_change()
+    else:
+        raise ValueError("Invalid time window. Choose from 'daily', 'monthly', or 'yearly'.")
+
+    # Sort in ascending order
+    sorted_returns = var_data['Return'].sort_values()
+
+    # Calculate the 5th percentile (for 95% confidence level)
+    hist_VaR_95 = sorted_returns.quantile(0.05)
+
+    # Calculate the VaR in dollars
+    current_adj_price = var_data['Close'].iloc[-1]
+    hist_VaR_95_dollars = hist_VaR_95 * current_adj_price
+
+    # Return both VaR in percentage and dollars
+    return hist_VaR_95, hist_VaR_95_dollars
+
+# Function to calculate Daily VaR
+def calculate_daily_VaR(var_data):
+    return calculate_historical_VaR(var_data, time_window='daily')
+
+# Function to calculate Monthly VaR
+def calculate_monthly_VaR(var_data):
+    return calculate_historical_VaR(var_data, time_window='monthly')
+
+# Function to calculate Yearly VaR
+def calculate_yearly_VaR(var_data):
+    return calculate_historical_VaR(var_data, time_window='yearly')
+
+# Calculate hist VaR for daily, monthly, and yearly
+hist_daily_VaR_95, hist_VaR_95_dollars = calculate_daily_VaR(var_data)
+hist_monthly_VaR_95, hist_monthly_VaR_95_dollars = calculate_monthly_VaR(var_data)
+hist_yearly_VaR_95, hist_yearly_VaR_95_dollars = calculate_yearly_VaR(var_data)
+# ---------- Value at Risk (VAR)
+
+
+# # ---------------- Get Industry Averages
+# URL of the webpages containing ratios by industry
+pe_url = "https://fullratio.com/pe-ratio-by-industry"
+roe_url = "https://fullratio.com/roe-by-industry"
+
+# Add user-agent header to mimic a browser (websites often block scraping)
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+
+# Initialize an empty list to store the extracted data
+pe_ind_avg_data = []
+roe_data = []
+
+# Function to find the table on the page
+def find_table(soup):
+    # Try to find any table first
+    table = soup.find('table')
+
+    if table is None:
+        # If no table is found, try other ways to locate it
+        tables = soup.find_all('table')
+        if tables:
+            table = tables[0]  # Use the first table found
+        else:
+            # Look for divs that might contain table data
+            table_container = soup.find('div', class_='table-responsive')
+            if table_container:
+                table = table_container.find('table')
+
+    return table
+
+# First scrape P/E ratios
+try:
+    # Send a GET request to the P/E URL with headers
+    response = requests.get(pe_url, headers=headers)
+    response.raise_for_status()  # Check if the request was successful
+
+    # Parse the content of the page with BeautifulSoup
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    # Find the table containing the P/E ratio data
+    table = find_table(soup)
+
+    if table is None:
+        st.error("Could not find the P/E ratio table on the webpage. The website structure might have changed.")
+    else:
+        # Extract the table rows from the table
+        rows = table.find_all('tr')
+
+        if len(rows) <= 1:
+            st.warning("Found a P/E table but it contains insufficient data.")
+        else:
+            # Get the headers to determine column indices
+            headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
+
+            # Find the indices for industry and PE ratio columns
+            industry_idx = next((i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
+            pe_idx = next((i for i, h in enumerate(headers_row) if 'p/e' in h.lower() or 'pe' in h.lower()), 1)
+
+            # Loop through each row, extract the industry and P/E ratio, and store it
+            for row in rows[1:]:  # Skip the first row, which contains column headers
+                cols = row.find_all('td')
+
+                if len(cols) > max(industry_idx, pe_idx):
+                    industry = cols[industry_idx].get_text(strip=True)
+                    pe_ratio_text = cols[pe_idx].get_text(strip=True)
+
+                    # Clean the PE ratio - remove any non-numeric characters except decimal point
+                    pe_ratio_text = ''.join(c for c in pe_ratio_text if c.isdigit() or c == '.')
+
+                    # Add to data list (convert P/E to float, handle missing values)
+                    try:
+                        pe_ratio = float(pe_ratio_text) if pe_ratio_text else None
+                    except ValueError:
+                        pe_ratio = None
+
+                    pe_ind_avg_data.append({
+                        'Industry': industry,
+                        'Average P/E Ratio': pe_ratio
+                    })
+
+            # Create a pandas DataFrame to organize the P/E data
+            industry_avg_df = pd.DataFrame(pe_ind_avg_data)
+
+except requests.exceptions.RequestException as e:
+    st.error(f"Error fetching P/E data: {e}")
+    industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
+except Exception as e:
+    st.error(f"Error processing P/E data: {e}")
+    industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
+
+# Now scrape ROE data
+try:
+    # Send a GET request to the ROE URL with headers
+    response = requests.get(roe_url, headers=headers)
+    response.raise_for_status()  # Check if the request was successful
+
+    # Parse the content of the page with BeautifulSoup
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    # Find the table containing the ROE data
+    table = find_table(soup)
+
+    if table is None:
+        st.error("Could not find the ROE table on the webpage. The website structure might have changed.")
+    else:
+        # Extract the table rows from the table
+        rows = table.find_all('tr')
+
+        if len(rows) <= 1:
+            st.warning("Found an ROE table but it contains insufficient data.")
+        else:
+            # Get the headers to determine column indices
+            headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
+
+            # Find the indices for industry and ROE columns
+            industry_idx = next((i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
+            roe_idx = next((i for i, h in enumerate(headers_row) if 'roe' in h.lower() or 'return on equity' in h.lower()), 1)
+
+            # Loop through each row, extract the industry and ROE, and store it
+            for row in rows[1:]:  # Skip the first row, which contains column headers
+                cols = row.find_all('td')
+
+                if len(cols) > max(industry_idx, roe_idx):
+                    industry = cols[industry_idx].get_text(strip=True)
+                    roe_text = cols[roe_idx].get_text(strip=True)
+
+                    # Clean the ROE value - remove any non-numeric characters except decimal point
+                    # Some ROE values might be percentages, so also remove % signs
+                    roe_text = roe_text.replace('%', '')
+                    roe_text = ''.join(c for c in roe_text if c.isdigit() or c == '.' or c == '-')
+
+                    # Add to data list (convert ROE to float, handle missing values)
+                    try:
+                        roe_value = float(roe_text) if roe_text else None
+                    except ValueError:
+                        roe_value = None
+
+                    roe_data.append({
+                        'Industry': industry,
+                        'Average ROE': roe_value
+                    })
+
+            # Create a pandas DataFrame to organize the ROE data
+            roe_df = pd.DataFrame(roe_data)
+
+            # Merge the P/E and ROE DataFrames on the Industry column
+            if not industry_avg_df.empty and not roe_df.empty:
+                industry_avg_df = pd.merge(industry_avg_df, roe_df, on='Industry', how='outer')
+            elif not roe_df.empty:
+                industry_avg_df = roe_df
+
+except requests.exceptions.RequestException as e:
+    st.error(f"Error fetching ROE data: {e}")
+except Exception as e:
+    st.error(f"Error processing ROE data: {e}")
+# ---------------- Get Industry Averages
+
+# -------------------------------- Data: Calculate and Create Variables for Historical / Risk Models ---------------------------------------
 
 
 
@@ -520,9 +1264,368 @@ forecast = trained_model.predict(future) # forecast future stock prices for our 
 # Reorder columns with yhat as the second column
 forecast = forecast[['ds', 'yhat'] + [col for col in forecast.columns if col not in ['ds', 'yhat']]]
 
+# Apply the lower bound to the forecasted prices, ensuring they don't go below 0
+forecast['yhat'] = forecast['yhat'].apply(lambda x: max(0.01, x))  # Set all negative values to 1 cent
+
 print(forecast)
 print(f"forecast year range {forecasted_year_range}")
 # ------------------------------------------------------ Data: Forecast Model (Forecasted Data) --------------------------------------------------------------------
+
+
+
+
+
+
+
+
+# ------------------------------------------------------ Data: Custom Stock Grade Model --------------------------------------------------------------------
+
+# Get Missing Metrics For Model
+
+
+
+# Define a function to calculate grades for stocks based on defined metrics
+def calculate_grades(stock_symbol):
+
+    # Initialize scores
+    model_pe_score = 0
+    model_roe_score = 0
+    model_volume_score = 0
+    model_dividend_score = 0
+    model_current_ratio_score = 0
+    model_debt_to_equity_score = 0
+    model_net_profit_margin_score = 0
+    model_sharpe_score = 0
+    model_prophet_sarima_score = 0
+    model_stock_price_vs_sp500_score = 0
+    model_analyst_rating_score = 0
+    model_operating_cash_flow_growth_score = 0
+    model_peg_ratio_score = 0
+    model_var_score = 0
+    model_monte_carlo_score = 0
+    model_rsi_sma_score = 0
+
+# ------- Forecast Percent Diff Variable
+    # Set Up Any Remaining Variables
+    model_chosen_prophet_price = forecast['yhat'].iloc[-1]  # forecast['yhat'].iloc[-1] retrieves the forecasted value
+
+    # Get Forecasted X Year $ Difference & Percentage:
+    model_prophet_forecast_difference = model_chosen_prophet_price - Current_Price
+    model_prophet_forecast_difference = round(model_prophet_forecast_difference, 2)
+    model_prophet_forecast_percent_difference = (model_prophet_forecast_difference/Current_Price)
+# ------- Forecast Percent Diff Variable
+
+# ------- SPY vs Selected Ticker Compare
+    spy_compare_df = load_data('SPY', start_date_three_y_ago, today)
+    selected_ticker_compare = load_data(selected_stock, start_date_three_y_ago, today)
+
+    # Function to compare performance
+    def compare_performance(stock_data=selected_ticker_compare, SPY_data=spy_compare_df):
+        # Merge the stock and SPY data on Date
+        comparison_df = pd.merge(stock_data[['Date', 'Percentage Change']],
+                                 SPY_data[['Date', 'Percentage Change']],
+                                 on='Date',
+                                 suffixes=('_stock', '_SPY'))
+
+        # Compare if the stock outperforms SPY on each day
+        comparison_df['Outperforms SPY'] = comparison_df['Percentage Change_stock'] > comparison_df['Percentage Change_SPY']
+
+        # Calculate the percentage of days the stock outperforms SPY
+        spy_outperform_percentage = comparison_df['Outperforms SPY'].mean()
+
+        return spy_outperform_percentage
+
+    # Call the Outperform % to retrieve
+    spy_outperform_percentage = compare_performance()
+# ------- SPY vs Selected Ticker Compare
+
+# ------- Monte Carlo Compare
+    # Get percentage of simulations over latest day close price for all simulations
+
+    # Extract the final price from each simulation (the last price in each row)
+    final_prices = mc_simulations[:, -1]  # The last column of each simulation path
+
+    # Compare the final price to the current day's closing price (last_price)
+    simulations_above_current_price = final_prices > last_price
+
+    # Calculate the percentage of simulations that end above the current price
+    percentage_above_current = (simulations_above_current_price.sum() / mc_simulations_num) * 100
+
+    # Get percentage of simulations that end 9% are higher from the latest day close price
+    price_threshold = last_price * 1.09
+
+    # Compare the final price to the current day's closing price (last_price)
+    simulations_above_9_percent = final_prices > price_threshold
+
+    # Calculate the percentage of simulations that meet the condition
+    percentage_above_9_percent = (simulations_above_9_percent.sum() / mc_simulations_num) * 100
+# ------- Monte Carlo Compare
+
+# ------- Merged Avg DFs
+    # Merge the two DataFrames on the 'Industry' column
+    industry_avg_merged_df = pd.merge(stock_ratios, industry_avg_df, on='Industry', how='left')
+
+    # Reduce fields to company, industry and it's averages
+    merged_df = industry_avg_merged_df[['Company Name', 'Industry', 'Average P/E Ratio', 'Average ROE']]
+
+    # Check if the row is empty
+    if not merged_df.empty:
+        # Get the scalar values from the row
+        selected_stock_industry_avg_pe = merged_df['Average P/E Ratio'].iloc[0]
+        selected_stock_industry_avg_roe = merged_df['Average ROE'].iloc[0]
+    else:
+        # If the row is empty, assign default values
+        selected_stock_industry_avg_pe = 25
+        selected_stock_industry_avg_roe = 10  # comes through as if a percent
+# ------- Merged Avg DFs
+
+    # PE Ratio / YOY Growth (13%)
+    if pe_ratio is not None and yoy_revenue_growth is not None:
+        if pe_ratio < selected_stock_industry_avg_pe and yoy_revenue_growth > 0.19:
+            model_pe_score = 0.13  # +13% for good growth
+        elif pe_ratio < selected_stock_industry_avg_pe and 0.12 <= yoy_revenue_growth <= 0.18:
+            model_pe_score = 0.08  # +8% for decent growth
+        elif pe_ratio < selected_stock_industry_avg_pe:
+            model_pe_score = 0.05  # +5% for below-average PE
+        else:
+            model_pe_score = 0  # 0% for high PE ratio compared to industry
+
+    # PEG Ratio Score (5%) -- validated
+    if peg_ratio is None or peg_ratio == '':
+        model_peg_ratio_score = 0.05  # Default score if missing
+    else:
+        try:
+            peg_ratio_float = float(peg_ratio)
+            if peg_ratio_float < 1:
+                model_peg_ratio_score = 0.05  # +5% for low PEG ratio
+            elif peg_ratio_float > 1:
+                model_peg_ratio_score = -0.02  # -2% for high PEG ratio
+            else:
+                model_peg_ratio_score = 0  # 0% for neutral PEG ratio
+        except ValueError:
+            # Handle case where peg_ratio can't be converted to a float
+            model_peg_ratio_score = 0.05  # Default score in case of invalid value
+
+    # ROE Score (5%)
+    if roe is not None:
+        if roe > selected_stock_industry_avg_roe:
+            model_roe_score = 0.05  # +5% if ROE is above sector average
+        else:
+            model_roe_score = 0  # 0% for low ROE compared to sector average
+
+    # Volume Score (3%) -- validated
+    if regular_market_volume is not None:
+        if regular_market_volume >= 500000:
+            model_volume_score = 0.03  # +3% for high volume
+        elif regular_market_volume < 500000:
+            model_volume_score = -0.02  # -2% for low volume
+
+    # Dividend Yield Score (3%) -- validated
+    if dividend_yield is not None:
+        if dividend_yield > 2:
+            model_dividend_score = 0.03  # +3% for above sector average
+        elif dividend_yield < 2:
+            model_dividend_score = 0
+
+    # Current Ratio Score (4%) -- validated
+    if current_ratio is not None:
+        if current_ratio > 1.2:
+            model_current_ratio_score = 0.04  # +4% for good liquidity
+        elif 1.0 <= current_ratio <= 1.99:
+            model_current_ratio_score = 0.025  # +2.5% for acceptable liquidity
+        elif 0.9 <= current_ratio < 1.0:
+            model_current_ratio_score = 0.015  # +1.5% for below-average liquidity
+        elif current_ratio < 0.5:
+            model_current_ratio_score = -0.02  # -2% for poor liquidity
+
+    # Debt-to-Equity Ratio Score (4%) -- validated
+    if debt_to_equity is not None:
+        if .9 <= debt_to_equity <= 1.4:
+            model_debt_to_equity_score = 0.04  # +4%
+        elif 1.41 <= debt_to_equity <= 1.89:
+            model_debt_to_equity_score = 0  # 0%
+        elif debt_to_equity > 1.9:
+            model_debt_to_equity_score = -0.02  # -2%
+        elif 0.33 <= debt_to_equity <= 0.99:
+            model_debt_to_equity_score = 0.02  # +2%
+        else:
+            model_debt_to_equity_score = -.01  # -1%
+
+    # Operating Cash Flow Growth (4%) -- validated
+    if yoy_ocfg_growth > 0.10:
+        model_operating_cash_flow_growth_score = 0.04  # +4% for high cash flow growth
+    else:
+        model_operating_cash_flow_growth_score = 0  # 0% for low or no growth
+
+    # Net Profit Margin Score (3%) -- validated
+    if net_profit_margin is not None:
+        if net_profit_margin >= 0.40:
+            model_net_profit_margin_score = 0.04  # +4% for high profitability
+        elif net_profit_margin >= 0.20:
+            model_net_profit_margin_score = 0.03  # +3% for moderate profitability
+        elif net_profit_margin >= 0.15:
+            model_net_profit_margin_score = 0.02  # +2% for reasonable profitability
+        elif net_profit_margin >= 0.10:
+            model_net_profit_margin_score = 0.01  # +1% for acceptable profitability
+        elif net_profit_margin < 0:
+            model_net_profit_margin_score = -0.02  # -2% for negative profitability
+
+    # Sharpe Ratio Score (4%) -- validated
+    if sharpe_ratio is not None:
+        if sharpe_ratio >= 1.5:
+            model_sharpe_score = 0.04  # +4% for strong Sharpe ratio
+        elif sharpe_ratio >= 1:
+            model_sharpe_score = 0.02  # +2% for decent Sharpe ratio
+        elif sharpe_ratio < 0.5:
+            model_sharpe_score = -0.04  # -4% for poor Sharpe ratio
+
+    # Prophet SARIMA Model (2%)
+    if model_prophet_forecast_percent_difference is not None:
+        if model_prophet_forecast_percent_difference >= 0.09:
+            model_prophet_sarima_score = 0.02  # +2% for good forecast change
+        else:
+            model_prophet_sarima_score = 0  # 0% for no significant forecast change
+
+    # Stock Price vs S&P 500 Score over 3 years (5%) -- validated
+    if spy_outperform_percentage >= 0.90:
+        model_stock_price_vs_sp500_score = 0.05  # +5% for outperforming S&P500
+    else:
+        model_stock_price_vs_sp500_score = 0  # 0% if not outperforming
+
+    # Analyst Ratings Score (3%) -- validated
+    if analyst_recommendation_summary is not None:
+        if analyst_recommendation_summary == "strong_buy":
+            model_analyst_rating_score = 0.025  # +2.5% for positive analyst ratings
+        elif analyst_recommendation_summary == "outperform":
+            model_analyst_rating_score = 0.03  # +3% for positive analyst ratings
+        elif analyst_recommendation_summary == "buy":
+            model_analyst_rating_score = 0.02  # +1.5% for negative analyst ratings
+        elif analyst_recommendation_summary == "sell":
+            model_analyst_rating_score = -0.02  # -1.5% for negative analyst ratings
+        elif analyst_recommendation_summary == "strong_sell":
+            model_analyst_rating_score = -0.02  # -1.5% for negative analyst ratings
+        else:
+            model_analyst_rating_score = 0  # 0% for neutral analyst ratings
+
+    # VaR Score (3%) -- validated
+    if hist_yearly_VaR_95 is not None:
+        # If hist_yearly_VaR_95 is a percentage (e.g., -0.05 for 5% loss)
+        if hist_yearly_VaR_95 > -0.10:  # Less than 10% loss
+            model_var_score = 0.03  # +3% for low VaR
+        elif -0.20 <= hist_yearly_VaR_95 <= -0.10:  # Between 10% and 20% loss
+            model_var_score = 0.02  # +2% for moderate VaR
+        elif hist_yearly_VaR_95 < -0.45:  # More than 45% loss
+            model_var_score = -0.03  # -3% for high VaR
+        else:
+            model_var_score = 0  # 0% for neutral VaR
+
+    # Monte Carlo Score (5%) -- compare % of simulations above current price and 9% inc from current price
+    if percentage_above_current >= 0.9 and percentage_above_9_percent >= 0.5:
+        model_monte_carlo_score = 0.05  # +5% for good simulation
+    elif percentage_above_current >= 0.65 and percentage_above_9_percent >= 0.35:
+        model_monte_carlo_score = 0.02  # +2% for decent simulation
+    elif percentage_above_current <= 0.65 and percentage_above_9_percent <= 0.35:
+        model_monte_carlo_score = -0.02  # -2% for poor simulation
+    else:
+        model_monte_carlo_score = 0  # 0% for neutral simulation
+
+    # RSI/SMA Score (2%) -- validated
+    if latest_rsi_value < 30 and sma_percentage_difference > 5:
+        model_rsi_sma_score = 0.01  # +1% for good RSI and SMA
+    elif latest_rsi_value > 70 and sma_percentage_difference < 5:
+        model_rsi_sma_score = 0  # -1% for bad RSI and SMA
+    else:
+        model_rsi_sma_score = 0  # 0% for neutral RSI and SMA
+
+    # Calculate model_score
+    model_score = (
+            model_pe_score + model_roe_score + model_volume_score + model_dividend_score +
+            model_current_ratio_score + model_debt_to_equity_score + model_net_profit_margin_score +
+            model_sharpe_score + model_prophet_sarima_score + model_stock_price_vs_sp500_score +
+            model_analyst_rating_score + model_operating_cash_flow_growth_score +
+            model_peg_ratio_score + model_var_score + model_monte_carlo_score + model_rsi_sma_score
+    )
+
+    # Calculate base points (remaining points to make total 1)
+    base_points = .4  # Adjust base points to fill up to 1
+    total_score = model_score + base_points  # Add the adjusted base points
+
+    # Determine grade and color based on total score
+    if total_score >= 0.97:
+        grade = "S"
+        grade_color_background = "rgba(255, 215, 0, 0.5)"  # Gold for S with 50% transparency
+        grade_color_outline = "rgba(255, 215, 0, 0.7)"  # Gold for S with 70% transparency
+    elif total_score >= 0.94:
+        grade = "A"
+        grade_color_background = "rgba(34, 139, 34, 0.5)"  # Forest green for A with 50% transparency
+        grade_color_outline = "rgba(34, 139, 34, 0.7)"  # Forest green for A with 70% transparency
+    elif total_score >= 0.90:
+        grade = "A-"
+        grade_color_background = "rgba(50, 205, 50, 0.5)"  # Lime green for A- with 50% transparency
+        grade_color_outline = "rgba(50, 205, 50, 0.7)"  # Lime green for A- with 70% transparency
+    elif total_score >= 0.87:
+        grade = "B+"
+        grade_color_background = "rgba(60, 179, 113, 0.5)"  # Medium sea green for B+ with 50% transparency
+        grade_color_outline = "rgba(60, 179, 113, 0.7)"  # Medium sea green for B+ with 70% transparency
+    elif total_score >= 0.84:
+        grade = "B"
+        grade_color_background = "rgba(102, 205, 170, 0.5)"  # Medium aquamarine for B with 50% transparency
+        grade_color_outline = "rgba(102, 205, 170, 0.7)"  # Medium aquamarine for B with 70% transparency
+    elif total_score >= 0.80:
+        grade = "B-"
+        grade_color_background = "rgba(152, 251, 152, 0.5)"  # Pale green for B- with 50% transparency
+        grade_color_outline = "rgba(152, 251, 152, 0.7)"  # Pale green for B- with 70% transparency
+    elif total_score >= 0.77:
+        grade = "C+"
+        grade_color_background = "rgba(173, 255, 47, 0.5)"  # Green yellow for C+ with 50% transparency
+        grade_color_outline = "rgba(173, 255, 47, 0.7)"  # Green yellow for C+ with 70% transparency
+    elif total_score >= 0.74:
+        grade = "C"
+        grade_color_background = "rgba(252, 226, 5, 0.5)"  # Bumblebee for C with 50% transparency
+        grade_color_outline = "rgba(252, 226, 5, 0.7)"  # Bumblebee for C with 70% transparency
+    elif total_score >= 0.70:
+        grade = "C-"
+        grade_color_background = "rgba(255, 165, 0, 0.5)"  # Orange for C- with 50% transparency
+        grade_color_outline = "rgba(255, 165, 0, 0.7)"  # Orange for C- with 70% transparency
+    elif total_score >= 0.67:
+        grade = "D+"
+        grade_color_background = "rgba(255, 140, 0, 0.5)"  # Dark orange for D+ with 50% transparency
+        grade_color_outline = "rgba(255, 140, 0, 0.7)"  # Dark orange for D+ with 70% transparency
+    elif total_score >= 0.64:
+        grade = "D"
+        grade_color_background = "rgba(255, 69, 0, 0.5)"  # Orange red for D with 50% transparency
+        grade_color_outline = "rgba(255, 69, 0, 0.7)"  # Orange red for D with 70% transparency
+    elif total_score >= 0.60:
+        grade = "D-"
+        grade_color_background = "rgba(255, 99, 71, 0.5)"  # Tomato for D- with 50% transparency
+        grade_color_outline = "rgba(255, 99, 71, 0.7)"  # Tomato for D- with 70% transparency
+    else:
+        grade = "F"
+        grade_color_background = "rgba(255, 0, 0, 0.5)"  # Red for F with 50% transparency
+        grade_color_outline = "rgba(255, 0, 0, 0.7)"  # Red for F with 70% transparency
+
+    return total_score, grade, grade_color_background, grade_color_outline
+
+# Calculate grades for the stock
+score, grade, grade_color_background, grade_color_outline = calculate_grades(selected_stock)
+
+if score is not None:
+    # Display the grade in a rounded box with the grade color
+    st.markdown(f"""
+        <div style="background-color:{grade_color_background}; 
+                    color:white; 
+                    font-size:20px; 
+                    font-weight:bold; 
+                    padding:10px 20px; 
+                    border-radius:15px; 
+                    border: 1px solid {grade_color_outline};
+                    display:inline-block;">
+            Model Grade: {grade}
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    st.write(f"Error calculating grades for {selected_stock}")
+# ------------------------------------------------------ Data: Custom Stock Grade Model --------------------------------------------------------------------
 
 
 # /////////////////////////////////////////////  Pull in our data and set up datasets for use in app  ////////////////////////////////////////////////////////
@@ -772,7 +1875,7 @@ with kpi_col4:
 
         # Get Forecasted X Year $ Difference & Percentage:
         trend_difference = chosen_forecasted_price - Current_Price
-        trend_difference_number = round(trend_difference, 2)    # round the number to two decimal points
+        trend_difference_number = round(trend_difference, 2)  # round the number to two decimal points
         trend_difference_percentage = (trend_difference/Current_Price)
         trend_difference_percentage = round(trend_difference_percentage * 100)
 
@@ -902,7 +2005,7 @@ with home_tab1:
                         if today_peg is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_1.metric(label="PEG:", value=today_peg)
-                            print(f"PEG Ratio today: {str(round(today_peg, 2))}")
+                            print(f"PEG Ratio today: {str(today_peg)}")
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"PEG: {NA}")
@@ -925,7 +2028,7 @@ with home_tab1:
                         # Check if data is available for the field today
                         if today_DE_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio, 2)) + '%')
+                            sh_col1_1.metric(label="Debt-to-Equity:", value=str(round(today_DE_ratio*100, 2)) + '%')
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Debt-to-Equity: {NA}")
@@ -940,6 +2043,14 @@ with home_tab1:
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1_1.warning(f"Dividend Yield: {NA}")
+
+                        # Add Net Profit Margin
+                        if net_profit_margin is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_1.metric(label="Net Profit Margin:", value=str(round(net_profit_margin * 100, 2)) + "%")
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_1.warning(f"Net Profit Margin: {NA}")
 
                         # Check if data is available for the field today
                         if beta is not None:
@@ -961,7 +2072,7 @@ with home_tab1:
                         # Create a variable for ROE ratio & extract the data for today if available:
                         today_ROE_ratio = roe
 
-                        # Check if data is available for the field today
+                        # Add Return On Equity
                         if today_ROE_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_2.metric(label="ROE:", value=str(round(today_ROE_ratio, 2)))
@@ -972,7 +2083,7 @@ with home_tab1:
                         # Create a variable for Current Ratio & extract the data for today if available:
                         today_CR_ratio = current_ratio
 
-                        # Check if data is available for the field today
+                        # Add Current Ratio
                         if today_CR_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_2.metric(label="Current Ratio:", value=str(round(today_CR_ratio, 2)))
@@ -983,7 +2094,7 @@ with home_tab1:
                         # Create a variable for Quick Ratio & extract the data for today if available:
                         today_QR_ratio = quick_ratio
 
-                        # Check if data is available for the field today
+                        # Add Quick Ratio
                         if today_QR_ratio is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_2.metric(label="Quick Ratio:", value=str(round(today_QR_ratio, 2)))
@@ -991,8 +2102,7 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Quick Ratio: {NA}")
 
-                        # Get Dividend Rate & extract the data for today if available:
-                        # Check if data is available for the field today
+                        # Get Dividend Rate
                         if dividend_rate is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1_2.metric(label="Dividend Rate (Annual):", value='$' + str(round(dividend_rate, 2)))
@@ -1000,15 +2110,23 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1_2.warning(f"Dividend Rate (Annual): {NA}")
 
-                        # Check if data is available for the field today
-                        if net_profit_margin is not None:
+                        # Add YOY Operational Growth:
+                        if yoy_ocfg_growth is not None:
                             # Write the value to the app for today in KPI format if the data is available
-                            sh_col1_2.metric(label="Net Profit Margin:", value=str(round(net_profit_margin * 100, 2)) + "%")
+                            sh_col1_2.metric(label=f"YOY OCF Growth:", value=round(yoy_ocfg_growth, 2))
                         else:
                             # Write the data is not available for the field if missing
-                            sh_col1_2.warning(f"Net Profit Margin: {NA}")
+                            sh_col1_2.warning(f"YOY OCF Growth: {NA}")
 
-                        # Add Price Day Range:
+                        # Add Sharpe Ratio:
+                        if sharpe_ratio is not None:
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1_2.metric(label=f"Sharpe Ratio:", value=str(sharpe_ratio))
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1_2.warning(f"Sharpe Ratio: {NA}")
+
+                        # Add 52 Week Price Range:
                         if fifty_two_week_range is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1.metric(label=f"52 Week Range:", value="$" + str(fifty_two_week_range))
@@ -1016,13 +2134,23 @@ with home_tab1:
                             # Write the data is not available for the field if missing
                             sh_col1.warning(f"52 Week Range: {NA}")
 
-                        # Add Price Day Range:
+                        # Add Enterprise Value Range:
                         if enterprise_value is not None:
                             # Write the value to the app for today in KPI format if the data is available
                             sh_col1.metric(label=f"Enterprise Value:", value="$" + "{:,.0f}".format(round(enterprise_value, 0)))
                         else:
                             # Write the data is not available for the field if missing
                             sh_col1.warning(f"Enterprise Value: {NA}")
+
+                        # Add Analyst Recommendation:
+                        if analyst_recommendation_summary is not None:
+                            # Capitalize the first letter of the value
+                            capitalized_value = str(analyst_recommendation_summary).capitalize()
+                            # Write the value to the app for today in KPI format if the data is available
+                            sh_col1.metric(label=f"Analyst Rating:", value=capitalized_value)
+                        else:
+                            # Write the data is not available for the field if missing
+                            sh_col1.warning(f"Analyst Rating: {NA}")
 
                     # if there is no data available at all for today, print no data available
                     else:
@@ -1102,7 +2230,7 @@ with home_tab1:
         paragraphs = split_into_paragraphs(stock_description, 4)
 
         # Wrap in dropdown visual
-        with st.expander(f"{company_name} Overview - {sector} / {industry}"):
+        with st.expander(f"{company_name} Overview - {sector} / {selected_industry}"):
             for paragraph in paragraphs:
                 st.markdown(paragraph)
 
@@ -1124,8 +2252,8 @@ with home_tab1:
                     color = 'black'
                 return f'color: {color}'
 
-            # Drop the 'Year' column
-            yearly_data = yearly_data.drop(columns=['Year'])
+            # Drop columns not needed for the visual
+            yearly_data = yearly_data.drop(columns=['Year', 'Returns', 'Excess_Returns'])
 
             # order yearly_data by date
             yearly_data = yearly_data.sort_values(by='Date', ascending=False)
@@ -1211,17 +2339,6 @@ with home_tab1:
                 # kpi for Present day SMA indicator
                 with sh_col1.container(border=True):
 
-                    # Get latest day price and SMA metrics
-                    price = moving_average_data['Close'].iloc[-1]  # Get the latest closing price
-                    sma_50 = moving_average_data['50_day_SMA'].iloc[-1]  # Latest 50-day SMA
-                    sma_200 = moving_average_data['200_day_SMA'].iloc[-1]  # Latest 200-day SMA
-
-                    # Calculate the difference between 50-day and 200-day SMA
-                    sma_price_difference = sma_50 - sma_200
-
-                    # Calculate the percentage difference between the 50-day and 200-day SMA
-                    sma_percentage_difference = (sma_price_difference / sma_200) * 100
-
                     # Logic to decide if it's a good buy or sell based on the crossover
                     if sma_percentage_difference > 5:
                         signal = "Bullish Trend Signal"
@@ -1273,28 +2390,6 @@ with home_tab1:
 
             # Create a visual for RSI data over 14-day window
             with sh_col2.container(border=True):
-                rsi_data = stock_data
-                def calculate_rsi(rsi_data, window=14):
-
-                    # Calculate the difference in price from previous day
-                    delta = rsi_data['Close'].diff()
-
-                    # Get the positive gains (where delta is positive) and negative losses (where delta is negative)
-                    gain = (delta.where(delta > 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of gains
-                    loss = (-delta.where(delta < 0, 0)).rolling(window=window, min_periods=1).mean()  # Rolling mean of losses
-
-                    # Calculate the Relative Strength (RS)
-                    rs = gain / loss
-
-                    # Calculate the RSI
-                    rsi = 100 - (100 / (1 + rs))
-
-                    return rsi
-
-                rsi_values = calculate_rsi(rsi_data)
-
-                # Get the most recent RSI value (latest day)
-                latest_rsi_value = rsi_values.iloc[-1]  # This is the RSI for the most recent day
 
                 # Write a buy, hold, sell momentum "if" logic based on rsi
                 if latest_rsi_value > 70:
@@ -1340,31 +2435,8 @@ with home_tab1:
 
             # Create Container for MACD visual
             with sh_col2.container(border=True):
-                # Calculate MACD and Signal line to provide additional insight on short term trend momentum and strength
-                def calculate_macd(df, fast=12, slow=26, signal=9):
 
-                    # Calculate the Fast and Slow Exponential Moving Averages
-                    df['EMA_fast'] = df['Close'].ewm(span=fast, adjust=False).mean()
-                    df['EMA_slow'] = df['Close'].ewm(span=slow, adjust=False).mean()
-
-                    # MACD Line = Fast EMA - Slow EMA
-                    df['MACD'] = df['EMA_fast'] - df['EMA_slow']
-
-                    # Signal Line = 9-period EMA of MACD
-                    df['Signal'] = df['MACD'].ewm(span=signal, adjust=False).mean()
-
-                    # Histogram = MACD - Signal
-                    df['Histogram'] = df['MACD'] - df['Signal']
-
-                    return df
-
-                # Apply the MACD calculation to the stock data
-                macd_data = calculate_macd(stock_data)
-
-                # Filter MACD df to include only the last year of data
-                macd_data = macd_data[moving_average_data['Date'] >= one_year_ago]
-
-                # Plot the MACD chart with Signal and Histogram
+                # Plot MACD chart with Signal and Histogram
                 with st.container():
 
                     # MACD + Signal Line Plot
@@ -1430,87 +2502,6 @@ with home_tab1:
         # Create new Container for VaR Risk metrics:
         with sh_c.container(border=True):
 
-            print(stock_data.columns)
-            print(stock_data.index)
-
-            # Date Index:
-            # The date index of the stock_data df is not in proper format to use the pandas resample() method.
-            # Need to reset to datetime index
-
-            # Ensure the 'Date' column is in datetime format (if it isn't already)
-            stock_data['Date'] = pd.to_datetime(stock_data['Date'], errors='coerce')
-
-            # Set the 'Date' column as the index of the DataFrame
-            stock_data.set_index('Date', inplace=True)
-
-            # Define function to calculate Historical VaR at 95% confidence level
-            def calculate_historical_VaR(stock_data, time_window='daily'):
-                """
-                Calculates the historical Value at Risk (VaR) at 95% confidence for a given time window (daily, monthly, yearly).
-
-                Parameters:
-                - stock_data: pandas DataFrame with historical stock data.
-                - time_window: str, the time window for VaR calculation ('daily', 'monthly', or 'yearly').
-
-                Returns:
-                - VaR value as a percentage and in dollars.
-
-                - resample() -> pandas method that allows for quickly changing the frequency of data using a letter
-                            'D': Day
-                            'W': Week
-                            'M': Month
-                            'A': Year
-                            'H': Hour
-                            'Q': Quarter
-                            'B': Business day (excludes weekends)
-
-                            ex:
-                            df.resample(rule, how='mean', fill_method='ffill')
-
-                            The errors='coerce' argument ensures that invalid or incorrect date formats are turned
-                            into NaT (Not a Time) instead of raising errors.
-                """
-
-                # Calculate daily returns using adjusted closing price based on time window
-                if time_window == 'daily':
-                    stock_data['Return'] = stock_data['Close'].pct_change()
-                elif time_window == 'monthly':
-                    stock_data['Return'] = stock_data['Close'].resample('ME').ffill().pct_change()
-                elif time_window == 'yearly':
-                    stock_data['Return'] = stock_data['Close'].resample('YE').ffill().pct_change()
-                else:
-                    raise ValueError("Invalid time window. Choose from 'daily', 'monthly', or 'yearly'.")
-
-                # Sort in ascending order
-                sorted_returns = stock_data['Return'].sort_values()
-
-                # Calculate the 5th percentile (for 95% confidence level)
-                hist_VaR_95 = sorted_returns.quantile(0.05)
-
-                # Calculate the VaR in dollars
-                current_adj_price = stock_data['Close'].iloc[-1]
-                hist_VaR_95_dollars = hist_VaR_95 * current_adj_price
-
-                # Return both VaR in percentage and dollars
-                return hist_VaR_95, hist_VaR_95_dollars
-
-            # Function to calculate Daily VaR
-            def calculate_daily_VaR(stock_data):
-                return calculate_historical_VaR(stock_data, time_window='daily')
-
-            # Function to calculate Monthly VaR
-            def calculate_monthly_VaR(stock_data):
-                return calculate_historical_VaR(stock_data, time_window='monthly')
-
-            # Function to calculate Yearly VaR
-            def calculate_yearly_VaR(stock_data):
-                return calculate_historical_VaR(stock_data, time_window='yearly')
-
-            # Calculate hist VaR for daily, monthly, and yearly
-            hist_daily_VaR_95, hist_VaR_95_dollars = calculate_daily_VaR(stock_data)
-            hist_monthly_VaR_95, hist_monthly_VaR_95_dollars = calculate_monthly_VaR(stock_data)
-            hist_yearly_VaR_95, hist_yearly_VaR_95_dollars = calculate_yearly_VaR(stock_data)
-
             # Header for VAR risk section
             st.markdown("<h4 style='text-align: center;'>Historical VaR - Model Metrics</h3>", unsafe_allow_html=True)
 
@@ -1548,54 +2539,6 @@ with home_tab1:
             # Header for VAR risk section
             st.markdown("<h4 style='text-align: center;'>Monte Carlo Simulation - 1 Year Trading Period</h3>", unsafe_allow_html=True)
 
-            # Set parameters for simulation
-            mc_simulations_num = 1000  # Number of simulated paths
-            mc_days_num = 252  # Number of days to simulate (e.g., one year of trading days)
-
-            # Calculate daily returns (log returns)
-            stock_data['Log Return'] = np.log(stock_data['Close'] / stock_data['Close'].shift(1))
-
-            # Drop any missing values
-            stock_data = stock_data.dropna()
-
-            # Display the first few log returns
-            stock_data[['Close', 'Log Return']].head()
-
-            # Calculate the mean and volatility from the historical data
-            mean_return = stock_data['Log Return'].mean()
-            volatility = stock_data['Log Return'].std()
-
-            # Simulate future price paths
-            mc_simulations = np.zeros((mc_simulations_num, mc_days_num))  # Shape should be (10000, 252)
-            last_price = stock_data['Close'].iloc[-1]  # Use the last closing price as the starting point
-
-            # Ensure the simulation loop works without dimension issues
-            for i in range(mc_simulations_num):
-
-                # Generate random returns for each day in the simulation
-                mc_random_returns = np.random.normal(mean_return, volatility, mc_days_num)
-
-                # Generate the simulated price path using compound returns
-                price_path = last_price * np.exp(np.cumsum(mc_random_returns))  # price_path shape will be (252,)
-
-                # Assign the simulated price path to the simulations array
-                mc_simulations[i, :] = price_path  # Assign to the i-th row of the simulations array
-
-            # Convert the simulations to a DataFrame for easier visualization
-            mc_simulated_prices = pd.DataFrame(mc_simulations.T, columns=[f'Simulation {i+1}' for i in range(mc_simulations_num)])
-
-            # Check a sample of simulated paths
-            print(mc_simulated_prices.head())
-
-            # Debug checks
-            print(price_path.shape)  # should print (252,) each time
-            print(mc_simulations.shape)  # should print (10000, 252)
-
-            # Calculate the 5th, 50th, and 95th percentiles of the simulated paths
-            percentile_5 = mc_simulated_prices.quantile(0.05, axis=1)
-            percentile_50 = mc_simulated_prices.quantile(0.5, axis=1)
-            percentile_95 = mc_simulated_prices.quantile(0.95, axis=1)
-
             # Plot the simulation and percentiles together
             plt.figure(figsize=(10, 4))
 
@@ -1608,9 +2551,9 @@ with home_tab1:
                 plt.plot(mc_simulations[i], color=mc_colors[i], alpha=0.1)
 
             # Plot the percentiles on top
-            plt.plot(percentile_5, label="5th Percentile", color='red', linestyle='--', linewidth=1)
-            plt.plot(percentile_50, label="50th Percentile (Median)", color='white', linestyle='--', linewidth=1)
-            plt.plot(percentile_95, label="95th Percentile", color='green', linestyle='--', linewidth=1)
+            plt.plot(mc_percentile_5, label="5th Percentile", color='red', linestyle='--', linewidth=1)
+            plt.plot(mc_percentile_50, label="50th Percentile (Median)", color='white', linestyle='--', linewidth=1)
+            plt.plot(mc_percentile_95, label="95th Percentile", color='green', linestyle='--', linewidth=1)
 
             # plot labels
             plt.xlabel('Days', fontsize=6, family='sans-serif', color=(1, 1, 1, 0.7))  # 50% transparent white; couldn't use "alpha"
@@ -1649,7 +2592,11 @@ with home_tab1:
                 - <span style="color:lightcoral; font-weight:bold;">**5th Percentile**</span>: Only 5% of the simulated price paths fell under the 5th percentile path. 95% of the simulations were above.
                 """, unsafe_allow_html=True)
 
-
+        st.write("Industry Averages:")
+        with sh_c.container(border=True):
+            # Add DF with industry averages
+            if not industry_avg_df.empty:
+                st.dataframe(industry_avg_df, hide_index=False, use_container_width=True)
 
 
 
@@ -1797,55 +2744,47 @@ with home_tab2:
 
 with home_tab3:
 
-    # Title to Add the Model Build is in Progress:
-    st.markdown("<h2 style='text-align: center;'>Model Build in Progress...</h2>", unsafe_allow_html=True)
-    st.header("")
-    st.header("")
+    # Create container variable for the grades tab
+    sh_g = st.container()
 
-    # Container for Stock Grades Page:
-    sg_c = st.container(height=500, border=False)
+    # Title for Custom Model Section
+    sh_g.write("Custom Grade Model:")
 
-    # Add Animations for WIP:
-    # CSS for cog wheel animation
-    cog_wheel_css = """
-    <style>
-    /* CSS for cog wheel animation */
-    @keyframes rotate {
-      from {
-        transform: rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    
-    .cog-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 50%;
-    }
-    
-    .cog {
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      border: 5px solid transparent;
-      border-top-color: #FF6347; /* Set to Streamlit's red color */
-      animation: rotate 1s linear infinite;
-    }
-    </style>
-    """
+    # Write Custom Model Grade to App
+    with sh_g.container(border=True):
 
-    # HTML for cog wheel animation
-    cog_html = """
-    <div class="cog-container">
-      <div class="cog"></div>
-    </div>
-    """
+        # Title to Add the Model Build is in Progress:
+        st.markdown("<h2 style='text-align: center;'>Custom Grade Model Build in Progress...</h2>", unsafe_allow_html=True)
+        st.header("")
+        st.header("")
 
-    # Display the animated spinner
-    sg_c.markdown(cog_wheel_css + cog_html, unsafe_allow_html=True)
+        # Container for Stock Grades Page:
+        sg_c = st.container(height=500, border=False)
+
+        # Add Animations for WIP:
+
+        # Display the cog wheel spinner with an adjusted larger cogwheel size
+        adjusted_cog_size = 150  # Adjust the size to 100px (larger cogwheel)
+        sg_c.markdown(cog_wheel_css(adjusted_cog_size) + cog_html(), unsafe_allow_html=True)
+
+    # Title for Yahoo Finance Analyst Section
+    sh_g.write("Analyst Grades / Predictions:")
+
+    # Write Analyst Grades to App
+    with sh_g.container(border=True):
+
+        # ----------------- Yahoo Finance Grades
+        # Display the DataFrame in Streamlit
+        st.write("Year End Price Predictions:")
+        st.dataframe(stock_analyst_info_df, hide_index=True, use_container_width=True)
+        # ----------------- Yahoo Finance Grades
+
+        # ----------------- Agency Grades
+        # Display the DataFrame in Streamlit
+        st.write("Analyst Recommendations:")
+        agency_analyst_info_df = agency_analyst_info
+        st.dataframe(agency_analyst_info_df, hide_index=True, use_container_width=True)
+        # ----------------- Agency Grades
 
 
 
