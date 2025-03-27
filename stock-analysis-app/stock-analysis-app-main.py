@@ -235,7 +235,7 @@ def create_warning_animation(size_factor=1.0):
             width: {exclamation_width}px;
             height: {exclamation_height}px;
             background-color: #FF4B5C; /* Streamlit Red */
-            border-radius: {4 * size_factor}px;
+            border-radius: {2 * size_factor}px;
         }}
         
         .exclamation-dot {{
@@ -243,14 +243,14 @@ def create_warning_animation(size_factor=1.0):
             height: {exclamation_dot_size}px;
             background-color: #FF4B5C; /* Streamlit Red */
             border-radius: 50%;
-            margin-top: {5 * size_factor}px;
+            margin-top: {3 * size_factor}px;
         }}
         
         .pulse {{
             position: absolute;
-            border: {3 * size_factor}px solid rgba(255, 75, 92, 0.5); /* Streamlit Red with opacity */
-            width: {pulse_size}px;
-            height: {pulse_size}px;
+            border: {5 * size_factor}px solid rgba(255, 75, 92, 0.5); /* Streamlit Red with opacity */
+            width: {1.3 * pulse_size}px;
+            height: {1.3 * pulse_size}px;
             border-radius: 50%;
             animation: pulse 1.5s ease-out infinite;
             opacity: 0;
@@ -424,7 +424,7 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
     sys.exit()
 
 # Retrieve additional metrics from Yahoo Finance API
-company_name = stock_info['longName']
+company_name = stock_info.get('longName', None)
 
 # Valuation Info
 pe_ratio = stock_info.get('trailingPE', None)  # PE Ratio (Price to Earnings)
@@ -673,6 +673,9 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
     """
 
     # Display the error animation
+    st.write("")  # adds extra spacing btw animation and error message
+    st.write("")
+    st.write("")
     st.markdown(centered_css, unsafe_allow_html=True)
     st.markdown(centered_html, unsafe_allow_html=True)
 
@@ -726,6 +729,9 @@ except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) 
     """
 
     # Display the error animation
+    st.write("")  # adds extra spacing btw animation and error message
+    st.write("")
+    st.write("")
     st.markdown(centered_css, unsafe_allow_html=True)
     st.markdown(centered_html, unsafe_allow_html=True)
 
@@ -1256,10 +1262,10 @@ trained_model = train_model(df_train)
 print(trained_model)
 
 # Create an interactive year range slider and set our forecast range period:
-forecasted_year_range = st.sidebar.slider("Choose a Forecast Range (Years):", 1, 10) # creates a slider for forecast years. 1 and 10 are the year range
-period = forecasted_year_range * 365 # stores full period of days in our year range. Will use this later in the app workflow
-future = trained_model.make_future_dataframe(periods=period) # Create a df that goes into the futre; make prediction on a dataframe with a column ds containing the dates for which a prediction is to be made
-forecast = trained_model.predict(future) # forecast future stock prices for our model. Will return predictions in forecast data
+forecasted_year_range = st.sidebar.slider("Choose a Forecast Range (Years):", 1, 10)  # creates a slider for forecast years. 1 and 10 are the year range
+period = forecasted_year_range * 365  # stores full period of days in our year range. Will use this later in the app workflow
+future = trained_model.make_future_dataframe(periods=period)  # Create a df that goes into the futre; make prediction on a dataframe with a column ds containing the dates for which a prediction is to be made
+forecast = trained_model.predict(future)  # forecast future stock prices for our model. Will return predictions in forecast data
 
 # Reorder columns with yhat as the second column
 forecast = forecast[['ds', 'yhat'] + [col for col in forecast.columns if col not in ['ds', 'yhat']]]
@@ -1676,6 +1682,8 @@ with st.sidebar.expander("PROFITABILITY RATIOS"):
     st.write("---Measure the combined effects of liquidity, asset mgmt, and debt on operating results---")
     st.write('<span style="color: lightcoral;">ROE (Return on Equity): [Net Income / Common Equity]</span>', unsafe_allow_html=True)
     st.write("Ratio Notes: Measures total return on investment | Compare to the stock's sector | Bigger = Better")
+    st.write('<span style="color: lightcoral;">Net Profit Margin: [Net Profit / Revenue]', unsafe_allow_html=True)
+    st.write("Ratio Notes: Measures the percentage of revenue that is converted to profit after expenses | Compare to the stock's sector | Bigger = Better")
 
 with st.sidebar.expander("LIQUIDITY RATIOS"):
     st.write("---Measure the ability to meet current liabilities in the short term (Bigger = Better)---")
@@ -1694,6 +1702,12 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
     st.write('<span style="color: lightcoral;">Debt-to-Equity: [Total Liabilities / Total Shareholder Equity]</span>', unsafe_allow_html=True)
     st.write("Ratio Notes: A good D/E ratio will vary by sector & company. Typically a 1.0-1.5 ratio is ideal. The main thing to look for is that if the company is leveraging debt is that it has enough liquidity and consistent return to pay off those debts. Leveraging debt (when managed well) can be a good indicator that a growth company is leveraging debt in order to re-invest and grow faster, which is typically a good sign that the company is strategically well managed.")
 
+with st.sidebar.expander("PERFORMANCE RATIOS"):
+    st.write("---Measures performance in the market against a certain benchmark---")
+    st.write('<span style="color: lightcoral;">Beta:</span>', unsafe_allow_html=True)
+    st.write("Ratio Notes: Beta measures the volatility of an investment relative to the overall market or benchmark index. Beta > 1 = more volatile; Beta < 1 = less volatile.")
+    st.write('<span style="color: lightcoral;">Sharpe Ratio: [(Return - RFR) / SD of Returns]</span>', unsafe_allow_html=True)
+    st.write("Ratio Notes: Sharpe Ratio measures the level of adjusted-risk to return of an investment against the current risk-free rate. The higher the ratio, the better overall return the asset provides against the level of risk taken investing into the asset. A Sharpe Ratio > 1 = good; > 2 = very good.")
 # ------------------------------------------- Sidebar: Add Dropdowns containing notes on metrics -----------------------------------------------
 
 
@@ -1720,9 +1734,12 @@ NA = "no data available for this stock"  # assign variable so can use in elseif 
 # Add Company Name:
 # Create a container for the company name:
 cn_c = st.container()
+
 # Check if data is available for the field:
 with cn_c:
-    if company_name.strip():  # if the field is not missing (use strip() for strings instead of .empty since it is not an object in the df in this situation)
+    # If company_name is not None, is a string, and has a non-empty value
+    if company_name and isinstance(company_name, str) and company_name.strip():  # if not missing use strip() instead of .empty for str
+        # .strip() removes any leading or trailing whitespaces and checks if the string is non-empty.
         # Write the value to the app for today in KPI format if the data is available
         # Custom CSS for styling the kpis below with a translucent grey border
         st.markdown(
@@ -1734,8 +1751,14 @@ with cn_c:
             unsafe_allow_html=True
         )
     else:
-        # Write the data is not available for the field if missing:
-        st.warning("Company Name: Not Available")
+        # adds a blank space
+        st.write("")
+
+        # Use streamlit error handling message
+        st.error(f"Oops... A large portion of the data is missing for this ticker. Probably not worth analysing :)")
+
+        # Stop any further app rendering:
+        st.stop()
 
 # Add a Line Seperator under the company name
 st.markdown("""---""")
@@ -2515,17 +2538,46 @@ with home_tab1:
         with sh_c.container():
 
             # write expander to app
-            with st.expander("Leveraging Short Term Models for Short-Term Buy/Sell/Hold Actions*"):  # add footnote drop-down
+            with st.expander("Leveraging Short-Term Models for Buy/Sell/Hold Trend Indicators*"):  # add footnote drop-down
+
+                # RSI Description
                 st.markdown("""
                 <span style="color:lightcoral; font-weight:bold;">**Relative Strength Index (RSI)**</span> is a momentum oscillator that provides a range from 0-100 to indicate if the asset is under or overpriced based on its speed and change of price movements.
                 
-                Interpret the RSI Ranges can be interpreted with the following logic:
+                RSI Ranges can be interpreted with the following logic:
                 - <span style="color:lightcoral; font-weight:bold;">**RSI > 70**</span> = Likely Overbought (Sell Signal): The maximum expected loss for one day.
                 - <span style="color:lightcoral; font-weight:bold;">**RSI ≈ 50**</span> = Neutral State: The maximum expected loss for one month.
                 - <span style="color:lightcoral; font-weight:bold;">**RSI < 30**</span> = Likely Oversold (Buy Signal): The maximum expected loss for one year.
         
                 <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
                 - If Meta's RIS is under 20, this indicates a more-extreme likelihood of market oversell compared to if the RSI were at 40, indicating market activity is in a neutral state
+                """, unsafe_allow_html=True)
+
+                # SMA Description
+                st.markdown("""
+                <span style="color:lightcoral; font-weight:bold;">**Simple Moving Average (SMA)**</span> is a statistical calculation that smooths the given range of price data to help identify price trends/cycles.
+                
+                Can leverage the long-term and short-term SMAs together as follows:
+                - <span style="color:lightcoral; font-weight:bold;">**200-Day SMA**</span> = Use as long-term trend indicator to benchmark against the 50-day SMA indicator.
+                - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA > 200-Day SMA**</span> = ST Bullish Signal: Referred to as a "Golden Cross" - Indicates the price has trended above its LT SMA and has upward momentum.
+                - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA < 200-Day SMA**</span> = ST Bearish Signal: Referred to as a "Death Cross" - Indicates the price has trended below its LT SMA and has downward momentum.
+        
+                <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                - If the price is above both the 50-day and 200-day SMAs, but it drops and then finds support at the 50-day SMA, it could signal that the short-term trend remains intact.
+                """, unsafe_allow_html=True)
+
+                # SMA Description
+                st.markdown("""
+                <span style="color:lightcoral; font-weight:bold;">**MACD (Moving Average Convergence Divergence)**</span> is a trend analysis indicator used to visualize momentum of a stock and buy/sell signals based on two staggered exponential moving averages (EMAs). The function in this application uses a 26-day EMA for the long and a 12-day EMA for the short trend line. The signal line uses a 9-day EMA which helps provide a clearer indication for buy/sell opportunity in the current short-term market state.
+                
+                - <span style="color:lightcoral; font-weight:bold;">**MACD Line (Yellow)**</span> = The difference between the 12-day and 26-day EMA (12-Day EMA - 26-day EMA). A positive MACD value (e.g., +4) means the 12-day EMA is above the 26-day EMA, suggesting that an uptrend (bullish momentum) is currently present in the market. Conversely, if the 12-day is below the 26-day, this would indicate the ticker is in a downtrend (bearish momentum). The Y-axis is the variation in price between the two averages. The higher the number, the stronger the momentum.
+                 
+                -> Note: You can also use the length of fluctuation as a benchmark to predict that the stock might be nearing a reversal in momentum (e.g. ticker typically caps at 4; if it is currently at a difference of 3, this could mean it may be near a reversal). So in theory, a good entry point would be when the stock is nearing the end of a downtrend and is gearing for reversal.
+                - <span style="color:lightcoral; font-weight:bold;">**Signal Line (Red)**</span> = The 9-day signal line used as a benchmark against the MACD line. 
+                - <span style="color:lightcoral; font-weight:bold;">**Histogram (Grey)**</span> = The histogram is used in addition to the MACD line to visually show when the ticker is indicating bullish vs bearish momentum by utilizng the Signal line against it. When the MACD line is above the Signal line, the histogram traces positive or above the 0-axis (bullish), and when the MACD line is below the Signal line, the histogram falls negative or below the 0-axis (bearish).
+        
+                <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                - If the Histogram is positive (MACD line is over the Signal line) and the ticker is peaking near its negative value cap (y-axis), this would indicate that the ticker is likely nearing or at reversal towards bullish momentum and may also be at a discount, thus indicating a shot-term buy opportunity in the current market.
                 """, unsafe_allow_html=True)
 
         # Add Risk Section:
