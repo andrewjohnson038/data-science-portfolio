@@ -233,7 +233,7 @@ st.sidebar.markdown(
 st.sidebar.header('Enter Zip Code & Restaurant')  # provide sidebar header
 
 # Title for App
-st.title("🍴 Restaurant Explorer")
+st.title("🍴 XXX AI APP")
 
 
 # ---
