@@ -5,8 +5,8 @@ import pandas as pd
 import yfinance as yf
 
 # Import app methods
-from app_constants import DateVars
-from app_data import AppData
+from stock_analysis_app.app_constants import DateVars
+from stock_analysis_app.app_data import AppData
 
 # Instantiate any imported classes here:
 dv = DateVars()
