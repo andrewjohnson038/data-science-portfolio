@@ -59,35 +59,51 @@ class StockGradeModel:
 
         # ------- SPY vs Selected Ticker Compare (3 years of data)
         spy_compare_df = yf.download('SPY', dv.three_yrs_ago, dv.today)
-        selected_ticker_compare = yf.download(ticker, dv.three_yrs_ago, dv.today)
+        selected_ticker_compare_df = yf.download(ticker, dv.three_yrs_ago, dv.today)  # Note: directly using _df suffix here
 
         # Reset index to make 'Date' a column if not already
         spy_compare_df = spy_compare_df.reset_index()
-        selected_ticker_compare = selected_ticker_compare.reset_index()
+        selected_ticker_compare_df = selected_ticker_compare_df.reset_index()
 
         # Calculate daily percentage change for each
         spy_compare_df['Percentage Change'] = spy_compare_df['Close'].pct_change() * 100
-        selected_ticker_compare['Percentage Change'] = selected_ticker_compare['Close'].pct_change() * 100
+        selected_ticker_compare_df['Percentage Change'] = selected_ticker_compare_df['Close'].pct_change() * 100
 
         # Function to compare performance
-        def compare_performance(stock_data=selected_ticker_compare, spy_data=spy_compare_df):
-            # Merge the stock and SPY data on Date
-            comparison_df = pd.merge(stock_data[['Date', 'Percentage Change']],
-                                     spy_data[['Date', 'Percentage Change']],
-                                     on='Date',
-                                     suffixes=('_stock', '_SPY'))
+        def compare_performance(stock_data=selected_ticker_compare_df, spy_data=spy_compare_df):  # Match the variable name here
+            # Add error handling and debugging
+            try:
+                # Verify dataframes have expected columns
+                print(f"Stock data columns: {stock_data.columns.tolist()}")
+                print(f"SPY data columns: {spy_data.columns.tolist()}")
 
-            # Compare if the stock outperforms SPY on each day
-            comparison_df['Outperforms SPY'] = comparison_df['Percentage Change_stock'] > comparison_df[
-                'Percentage Change_SPY']
+                # Make sure 'Date' and 'Percentage Change' exist in both dataframes
+                if 'Date' not in stock_data.columns or 'Percentage Change' not in stock_data.columns:
+                    print("Missing required columns in stock data")
+                    return 0.5  # Return a neutral value if data is missing
 
-            # Calculate the percentage of days the stock outperforms SPY
-            spy_outperform_percentage = comparison_df['Outperforms SPY'].mean()
+                # Merge the stock and SPY data on Date
+                comparison_df = pd.merge(stock_data[['Date', 'Percentage Change']],
+                                         spy_data[['Date', 'Percentage Change']],
+                                         on='Date',
+                                         suffixes=('_stock', '_SPY'))
 
-            return spy_outperform_percentage
+                # Debug merged dataframe
+                print(f"Merged columns: {comparison_df.columns.tolist()}")
+
+                # Compare if the stock outperforms SPY on each day
+                comparison_df['Outperforms SPY'] = comparison_df['Percentage Change_stock'] > comparison_df['Percentage Change_SPY']
+
+                # Calculate the percentage of days the stock outperforms SPY
+                spy_outperform_percentage = comparison_df['Outperforms SPY'].mean()
+                return spy_outperform_percentage
+
+            except Exception as e:
+                print(f"Error in compare_performance: {str(e)}")
+                return 0  # Return zero on error
 
         # Call the Outperform % to retrieve
-        spy_outperform_percentage = compare_performance()
+        spy_outperform_percentage = compare_performance(selected_ticker_compare_df, spy_compare_df)
 
         # ------- Monte Carlo Compare
         # Get percentage of simulations over latest day close price for all simulations
