@@ -12,9 +12,9 @@ from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
 from prophet import Prophet  # Import Prophet (META Time Series Model for Forecasting)
 
 # Import app methods
-from app_constants import DateVars
-from app_constants import alpha_vantage_key, groq_key
-from app_animations import CSSAnimations
+from stock_analysis_app.app_constants import DateVars
+from stock_analysis_app.app_constants import alpha_vantage_key, groq_key
+from stock_analysis_app.app_animations import CSSAnimations
 
 # Instantiate any imported classes here:
 dv = DateVars()
