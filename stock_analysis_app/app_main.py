@@ -33,6 +33,12 @@ import requests
 import json
 import sys
 
+import sys
+import os
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import app methods
 from stock_analysis_app.app_constants import DateVars, alpha_vantage_key, groq_key
 from stock_analysis_app.app_data import AppData
