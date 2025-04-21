@@ -34,12 +34,11 @@ import json
 import sys
 
 # Import app methods
-from app_constants import DateVars
-from app_constants import alpha_vantage_key, groq_key
-from app_data import AppData
-from app_animations import CSSAnimations
-from app_stock_grading_model import StockGradeModel
-from app_grade_batch import GradeBatchMethods
+from stock_analysis_app.app_constants import DateVars, alpha_vantage_key, groq_key
+from stock_analysis_app.app_data import AppData
+from stock_analysis_app.app_animations import CSSAnimations
+from stock_analysis_app.app_stock_grading_model import StockGradeModel
+from stock_analysis_app.app_grade_batch import GradeBatchMethods
 
 # Instantiate any imported classes here:
 dv = DateVars()
