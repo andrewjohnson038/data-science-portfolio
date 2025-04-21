@@ -1,0 +1,35 @@
+# Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment directories
+venv/
+env/
+.venv/
+.env/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# IDEs (e.g., PyCharm, VSCode)
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# System files (e.g., macOS, Windows)
+.DS_Store
+Thumbs.db
+
+# .env files containing environment variables (e.g., secrets, API keys)
+.env
+
+# Streamlit configuration files (if any)
+config.toml
+
+# Other things you might not want in version control
+*.bak
+*.swp
