@@ -30,6 +30,9 @@ Thumbs.db
 # Streamlit configuration files (if any)
 config.toml
 
+# Ignore Streamlit secrets folder
+.secrets/
+
 # Other things you might not want in version control
 *.bak
 *.swp
