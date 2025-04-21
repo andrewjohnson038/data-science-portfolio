@@ -6,10 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 # Import app methods
-from app_constants import DateVars
-from app_data import AppData
-from app_animations import CSSAnimations
-from app_stock_grading_model import StockGradeModel
+from stock_analysis_app.app_constants import DateVars
+from stock_analysis_app.app_data import AppData
+from stock_analysis_app.app_animations import CSSAnimations
+from stock_analysis_app.app_stock_grading_model import StockGradeModel
 
 # Instantiate any imported classes here:
 dv = DateVars()
