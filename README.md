@@ -24,6 +24,12 @@ The model data is retrieved through a scheduled batch process that loops through
 - **Time-Series Forecasting**  
   Implements both **SARIMA** and **META Prophet** models for future price prediction.
 
+- **MACD (Moving Average Convergence Divergence)**  
+  A trend-following momentum indicator used to determine the strength and direction of a trend.
+
+- **SMA (Simple Moving Average)**  
+  Used to smooth out price data to identify trends over a specific period.
+
 - **Monte Carlo Simulation**  
   Generates a range of possible outcomes based on historical data and volatility.
 
