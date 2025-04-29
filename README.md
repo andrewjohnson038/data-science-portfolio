@@ -1,6 +1,6 @@
 # Data Science Portfolio
 
-Welcome to my Data Science Portfolio! This repo is where I keep a mix of personal and professional projects that highlight my experience with data analysis, data engineering, BI tools, and building data-driven applications.
+Welcome to my Data Science Portfolio :) This repo is where I actively maintain and keep a mix of personal projects that highlight my experience with data analysis, data engineering, BI tools, and building data-driven applications. 
 
 Each folder in here is its own project, complete with code, documentation, and everything needed to explore it further. ReadMe files with more context will be placed in each sub-directory for the project.
 
