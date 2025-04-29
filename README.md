@@ -14,6 +14,8 @@ Built with the **Streamlit** framework using **Python**, **CSS**, and **HTML**, 
 
 The model data is retrieved through a scheduled batch process that loops through and does a lookup against a ticker list repo and iterates through spaced batch loops to adhere to **Yahoo Finance API** rate limits.
 
+**Note: The Batch load Process and page structure is currently being updated to seperate functions. The current batch load will not work within the UI**
+
 ---
 
 ### 🔍 Techniques Used
