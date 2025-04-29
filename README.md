@@ -1,30 +1,47 @@
-This Repository is to hold any code applied to data related analysis/science related portfolio projects.
+# Data Science Portfolio
 
-Current Repo Projects:
+Welcome to my Data Science Portfolio! This repo is where I keep a mix of personal and professional projects that highlight my experience with data analysis, data engineering, BI tools, and building data-driven applications.
 
-  - Stock Analysis App
-  - BI Portfolio
+Each folder in here is its own project, complete with code, documentation, and everything needed to explore it further. ReadMe files with more context will be placed in each sub-directory for the project.
 
-Stock Anlysis App:
+---
 
-Built in the Streamlit framweork using Python, HTML & CSS. Stock Data is pulled via yahoo finance libraries. The app provides historical and predicted price trends and risk assessments to provide robust analysis by selected ticker. 
+## 📊 Projects
 
-  Techniques include:
-  - Historical price plotting (w/ exponnential smoothing model for historical trend)
-  - SARIMA time-series forecast model for future price prediction (META Prophet model)
-  - Monte Carlo Simulation
-  - VaR Assessment
+### 1. [Stock Analysis App](./stock_analysis_app)
 
- Enhancements:
- - Generative AI chatbot to aid in general questions while using the app (utilizes Groq w/ llama3-8b-8192 model)
- - In dev - custom stock grading model leveraging in-app models/data
- - 
+Built with the **Streamlit** framework using **Python**, **CSS**, and **HTML**, this app features a custom **S-F grading model**, multiple **forecasting** and **trend analysis tools**, **web scraping**, and an integrated **generative AI chatbot**. Key libraries include **Pandas**, **NumPy**, **Plotly**, **BeautifulSoup**, and **MATLAB**.
 
-BI Portfolio:
+The model data is retrieved through a scheduled batch process that loops through and does a lookup against a ticker list repo and iterates through spaced batch loops to adhere to **Yahoo Finance API** rate limits.
 
-  - Spotify 2023 Trend Analysis:
-      Using a dataset pulled via Kaggle API, the project uses Python for data prep/manipulation and Tableau for data visualization.
-  - Financial Product Compare:
-      Simple Data Prep for Financial Product Compare viz in Tableau.
+---
 
-Additional details on each project is provided in the Read Me of each project folder.
+### 🔍 Techniques Used
+
+- **Historical Price Plotting**  
+  Uses **exponential smoothing** to identify historical trends.
+
+- **Time-Series Forecasting**  
+  Implements both **SARIMA** and **META Prophet** models for future price prediction.
+
+- **Monte Carlo Simulation**  
+  Generates a range of possible outcomes based on historical data and volatility.
+
+- **Value at Risk (VaR) Assessment**  
+  Evaluates potential downside risk at a given confidence level.
+
+➡️ [Go to Project Directory](./stock_analysis_app)
+
+---
+
+### 2. [BI Portfolio](./bi-portfolio)
+
+This subdirectory contains the **Python scripts** used to clean, transform, and prepare the data behind each **Tableau** report in my Tableau Public portfolio. It includes all the data wrangling and preprocessing steps that prepare the data for visualization.
+
+The datasets utilized are either pulled from Kaggle or were generated with AI.
+
+➡️ [Go to Project Directory](./bi-portfolio)
+
+---
+
+## 📁 Structure
