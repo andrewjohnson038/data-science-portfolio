@@ -45,3 +45,5 @@ The datasets utilized are either pulled from Kaggle or were generated with AI.
 ---
 
 ## 📁 Structure
+
+Reference the ReadMe files located in the subdirectory folders for individual project structures.
