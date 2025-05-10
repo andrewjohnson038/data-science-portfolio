@@ -79,7 +79,7 @@ class CSSAnimations:
         exclamation_height = 60 * size_factor
         exclamation_width = 12 * size_factor
         exclamation_dot_size = 12 * size_factor
-        pulse_size = 90 * size_factor  # Smaller to prevent overlap
+        pulse_size = 105 * size_factor  # Smaller to prevent overlap
         font_size = 18 * size_factor
 
         # Define the CSS with size-adjusted values

@@ -16,10 +16,11 @@ from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_constants import alpha_vantage_key, groq_key
 from stock_analysis_app.app_animations import CSSAnimations
 
+from datetime import datetime, timedelta
+
 # Instantiate any imported classes here:
 dv = DateVars()
 animation = CSSAnimations()
-
 
 # --------------------------------------------------- Data: Create Class for ticker data -----------------------------------------------------------------
 
@@ -57,51 +58,88 @@ class AppData:
 
         return filtered_tickers  # Return the filtered and sorted list of tickers
 
-    # Method to load ticker price history to a df based on the provided time range/ticker
+
     @staticmethod
-    @st.cache_data()
-    def load_price_hist_data(ticker, st_dt=dv.start_date, end_dt=dv.today):  # Define the "load data" function
-        stock_price_history_df = yf.download(ticker, start=st_dt, end=end_dt)  # Fetch data from Yahoo Finance
+    @st.cache_data
+    def load_price_hist_data(ticker, start_date=None, end_date=None):
 
-        # Check the index structure before resetting
-        print("Current stock_data index:")
-        print(stock_price_history_df.index)
+        # Convert string dates to datetime objects if provided
+        if isinstance(start_date, str):
+            try:
+                start_date = pd.to_datetime(start_date)
+            except:
+                st.error(f"Invalid start date format: {start_date}")
+                return pd.DataFrame()
 
-        # Reset the index to remove any MultiIndex structure (if exists)
-        stock_price_history_df.reset_index(inplace=True)  # This will reset all levels of the index
+        if isinstance(end_date, str):
+            try:
+                end_date = pd.to_datetime(end_date)
+            except:
+                st.error(f"Invalid end date format: {end_date}")
+                return pd.DataFrame()
 
-        # Flatten MultiIndex columns if they exist
-        stock_price_history_df.columns = [col[0] if isinstance(col, tuple) else col for col in
-                                          stock_price_history_df.columns]
+        # Set default end_date as today if not provided
+        if end_date is None:
+            end_date = datetime.today().date()
 
-        # Fill in missing dates if any
-        stock_price_history_df['Date'] = pd.to_datetime(
-            stock_price_history_df['Date'])  # Ensure 'Date' is a datetime object
-        date_range = pd.date_range(start=stock_price_history_df['Date'].min(),
-                                   end=stock_price_history_df['Date'].max())  # Complete date range
-        date_range_df = pd.DataFrame({'Date': date_range})  # Create a DataFrame with the full date range
+        # Set default start_date as 10 years before end_date if not provided
+        if start_date is None:
+            start_date = end_date - timedelta(days=365 * 10)
 
-        # Merge and fill missing data with the last available values
-        stock_price_history_df = pd.merge(date_range_df, stock_price_history_df, on='Date',
-                                       how='left').ffill()  # Merge and forward fill
+        # Ensure dates are properly formatted for yfinance
+        start_date_str = start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else start_date
+        end_date_str = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else end_date
 
-        # Convert 'Date' column to datetime (if necessary)
-        stock_price_history_df['Date'] = pd.to_datetime(stock_price_history_df['Date'])
+        # Download data with string-formatted dates
+        stock_price_history_df = yf.download(ticker, start=start_date_str, end=end_date_str)
 
-        # Calculate the daily price change (Close - previous day's Close)
-        stock_price_history_df['Price Change'] = stock_price_history_df['Close'].diff()
+        if stock_price_history_df.empty:
+            st.error(f"No data returned for ticker '{ticker}' in the selected date range.")
+            return pd.DataFrame()
 
-        # Replace NaN in 'Price Change' with 0
-        stock_price_history_df['Price Change'] = stock_price_history_df['Price Change'].fillna(0)
+        # Reset index to convert Date from index to column
+        stock_price_history_df = stock_price_history_df.reset_index()
 
-        # Calculate the percentage change in price
-        stock_price_history_df['Percentage Change'] = (stock_price_history_df['Price Change'] / stock_price_history_df[
-            'Close'].shift(1)) * 100
+        # Handle potential MultiIndex columns (happens with adjusted data)
+        stock_price_history_df.columns = [col[0] if isinstance(col, tuple) else col for col in stock_price_history_df.columns]
 
-        # Replace NaN in 'Price Change' with 0
+        # Ensure 'Date' is datetime and drop rows with missing dates
+        stock_price_history_df['Date'] = pd.to_datetime(stock_price_history_df['Date'], errors='coerce')
+        stock_price_history_df = stock_price_history_df.dropna(subset=['Date'])
+
+        if stock_price_history_df.empty:
+            st.warning(f"No valid dates found for '{ticker}'.")
+            return pd.DataFrame()
+
+        # Validate dates before building the full date range
+        min_date = stock_price_history_df['Date'].min()
+        max_date = stock_price_history_df['Date'].max()
+
+        if pd.isna(min_date) or pd.isna(max_date):
+            st.warning(f"Could not determine valid date range for '{ticker}'.")
+            return pd.DataFrame()
+
+        # Create full date range and fill missing dates
+        date_range = pd.date_range(start=min_date, end=max_date, freq='B')  # Business days only
+        date_range_df = pd.DataFrame({'Date': date_range})
+
+        # Merge with proper datetime format
+        stock_price_history_df = pd.merge(date_range_df, stock_price_history_df, on='Date', how='left')
+
+        # Forward fill missing values
+        stock_price_history_df = stock_price_history_df.ffill()
+
+        # Calculate price change and percent change
+        stock_price_history_df['Price Change'] = stock_price_history_df['Close'].diff().fillna(0)
+
+        # Avoid division by zero
+        prev_close = stock_price_history_df['Close'].shift(1)
+        stock_price_history_df['Percentage Change'] = (
+                                                              stock_price_history_df['Price Change'] / prev_close.replace(0, np.nan)
+                                                      ) * 100
         stock_price_history_df['Percentage Change'] = stock_price_history_df['Percentage Change'].fillna(0)
 
-        return stock_price_history_df  # Return the cleaned and filled price history data
+        return stock_price_history_df
 
     # Method to Retrieve the Latest Close Price and Date as Fields
     @staticmethod
@@ -121,32 +159,42 @@ class AppData:
     # Method to pull latest date stock metrics from yfinance / alpha vantage
     @staticmethod
     def load_curr_stock_metrics(ticker="AAPL"):  # defaults ticker to apple if one isn't provided
-        """Fetch stock data and handle errors gracefully."""
-        # Error handling for fetching stock data
+        """
+        Fetch stock data and handle errors gracefully.
+        """
+
+        # Check if data is available
         try:
-            stock_info = yf.Ticker(ticker).info  # Try to fetch stock information
+            stock_info = yf.Ticker(ticker).info
 
-            # Check if the response is valid (not empty)
+            # If info dict is empty or contains an error key, warn but don't stop
             if not stock_info or "error" in stock_info:
-                raise ValueError("Received an empty or invalid response.")
+                st.warning(f"No valid data found for ticker `{ticker}`. It may be delisted or unavailable.")
+                stock_info = None  # Set to None for downstream logic
 
-        # Handle errors related to the fetch request, invalid JSON, or empty response
-        except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
-            st.markdown(f"""
-            <div id="error-message">
-                <div style="display: flex; align-items: center;">
-                    <!-- Insert the cogwheel animation here -->
-                    {animation.cog_wheel()}
-                    <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
-                        An error occurred while fetching the data. This is likely due to updates to the data source API/package. 
-                        Hold on tight - app maintenance is in place!
-                    </span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        except Exception as e:
+            error_message = str(e)
 
-            # Stop execution of any further script if the error occurs
-            st.stop()
+            # Handle rate limit errors more seriously
+            if "rate limit" in error_message.lower() or "too many requests" in error_message.lower():
+                st.write(" ")
+                st.write(" ")
+                st.markdown(f"""
+                    <div id="error-message">
+                        <div style="display: flex; align-items: center;">
+                            {animation.warning_animation(3)}
+                            <span style="font-size: 18px; font-weight: 600; line-height: 1.5;">
+                                Rate limit error while fetching data for `{ticker}`.<br>
+                                <code>{error_message}</code>
+                            </span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.stop()
+            else:
+                # Log non-critical errors without stopping the app
+                st.warning(f"An error occurred while fetching data for `{ticker}`: {error_message}")
+                st.stop()
 
         # Retrieve additional metrics from Yahoo Finance API
         company_name = stock_info.get('longName', None)
@@ -825,7 +873,7 @@ if __name__ == "__main__":
 
     # Test the Moving Average Data Set
     print("\nTesting get moving average ds method...")
-    moving_average_test_df = AppData.calculate_moving_averages(price_history)
+    moving_average_test_df = AppData.get_simple_moving_avg_data_df(price_history)
     print(moving_average_test_df.columns)
     print(moving_average_test_df[['Date', 'Close', '50_day_SMA', '200_day_SMA']].tail())  # Check last couple rows
 

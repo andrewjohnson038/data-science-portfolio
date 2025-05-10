@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt  # Import MatPlotLib for Monte Carlo sim
 from groq import Groq  # Import Huggingface transformers model for gpt chatbot from Groq
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing  # import lib for applying exponential smoothing line
 from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
+from datetime import datetime, timedelta
 
 import requests
 import json
@@ -55,15 +56,24 @@ batch = GradeBatchMethods()
 
 
 # -------- Page Layout: Add Dropdowns containing notes on metrics
-# Set Layout of App, Provide App Version and Provide Title
+# # Set Layout of App, Provide App Version and Provide Title
+# create_page = st.Page("create.py", title="Home", icon=":material/home:")
+# delete_page = st.Page("delete.py", title="Grades", icon=":material/analytics:")
+
+# pg = st.navigation([create_page, delete_page])
+
 st.set_page_config(layout='wide')  # sets layout to wide
 st.sidebar.markdown(
     "<div style='text-align: center; padding: 20px;'>App Version: 1.4 &nbsp; <span style='color:#FF6347;'>&#x271A;</span></div>",
     unsafe_allow_html=True)  # adds App version and red medical cross icon with HTML & CSS code; nbsp adds a space
-st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
+
+# pg.run()
 
 
 # -------- Sidebar: Add Dropdowns containing notes on metrics
+
+# Dropdown header
+st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
 
 # Create Var for filtered list of tickers that will be used throughout the app
 ticker_list = data.filtered_tickers()
@@ -129,9 +139,13 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
 
 
 # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
+st_dt = dv.start_date
+end_dt = dv.today
+today = datetime.today()
+start_date = today.replace(year=today.year - 10)
 
 # Load the stock data based on the ticker selected in front end
-selected_stock_price_history_df = data.load_price_hist_data(selected_stock)
+selected_stock_price_history_df = data.load_price_hist_data(selected_stock, st_dt, end_dt)
 
 # Fetch stock data for the selected stock
 selected_stock_metrics_df = data.load_curr_stock_metrics(selected_stock)
@@ -199,7 +213,7 @@ selected_stock_analyst_targets_df = data.fetch_yf_analyst_price_targets(selected
 selected_stock_analyst_recommendations_df = data.fetch_yf_analyst_recommendations(selected_stock)
 
 # For Benchmarking Purposes, create a separate DF for SPY
-SPY_data = data.load_price_hist_data("SPY")  # loads the selected ticker data (selected_stock)
+SPY_data = data.load_price_hist_data("SPY", st_dt, end_dt)  # loads the selected ticker data (selected_stock)
 
 
 # -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
@@ -237,6 +251,20 @@ for i in range(1, len(yearly_data)):
 
 # Set the indicator for the first row as yellow square since there is no previous row
 yearly_data.at[0, 'Trend'] = '■'
+
+# Check if we have at least 3 distinct years of data
+unique_years = yearly_data['Date'].dt.year.nunique()
+
+# Add a load halt if there's not enough data
+if unique_years < 2:
+
+    # Then show the styled error message separately
+    st.error("This ticker doesn't have enough historical data or metrics available to run analysis 😕\n\nPlease try another ticker.")
+
+    # Show cogwheel animation (renders properly)
+    st.markdown(animation.warning_animation(2), unsafe_allow_html=True)
+
+    st.stop()
 
 
 # -------------------------------- Data: Calculate and Create Variables for Simulations / Risk Models ---------------------------------------
