@@ -4,11 +4,8 @@ matplotlib==3.8.4
 numpy==2.2.5
 pandas==2.2.3
 plotly==5.21.0
-prophet==1.1.5
 prophet==1.1.6
 Requests==2.32.3
 statsmodels==0.14.4
 streamlit==1.45.0
-streamlit==1.32.0
 yfinance==0.2.59
-yfinance==0.2.55
