@@ -141,8 +141,6 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
 # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
 st_dt = dv.start_date
 end_dt = dv.today
-today = datetime.today()
-start_date = today.replace(year=today.year - 10)
 
 # Load the stock data based on the ticker selected in front end
 selected_stock_price_history_df = data.load_price_hist_data(selected_stock, st_dt, end_dt)
@@ -218,53 +216,80 @@ SPY_data = data.load_price_hist_data("SPY", st_dt, end_dt)  # loads the selected
 
 # -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
 
-# Yearly DF is written to the app in later code
+# Ensure 'Date' column is datetime
+selected_stock_price_history_df['Date'] = pd.to_datetime(selected_stock_price_history_df['Date'])
 
-# Get data from each available day of the current month through all years
-ct_month_yrly_data = selected_stock_price_history_df[selected_stock_price_history_df[
-                                                         'Date'].dt.month == dv.current_mth]  # filters stock_data df to this month throughout all years
+# Filter just the current month across all years
+ct_month_yrly_data = selected_stock_price_history_df[
+    selected_stock_price_history_df['Date'].dt.month == dv.current_mth
+    ]
 
-# Get data from each available day of the current day through the all years
-yearly_data = ct_month_yrly_data[
-    ct_month_yrly_data['Date'].dt.day == dv.current_day]  # filters stock_data df to this day throughout all years
+# Build yearly snapshot by going from current year backwards (e.g., 2025 to 2015)
+year_range = list(range(dv.current_yr, dv.current_yr - 10, -1))
+yearly_data = pd.DataFrame()
 
-# Add column with Trend indicators to the yearly_data table
-# Make a copy of the DataFrame and reset its index so we can do a loop 1-10 for the indicators
-yearly_data = yearly_data.copy().reset_index(drop=True)
+for year in year_range:
+    year_subset = ct_month_yrly_data[ct_month_yrly_data['Date'].dt.year == year]
 
-# Add a "Trend" column and add with empty strings
+    if year_subset.empty:
+        continue
+
+    try:
+        target_date = pd.Timestamp(year=year, month=dv.current_mth, day=dv.current_day)
+    except ValueError:
+        continue  # skip Feb 30, etc.
+
+    # Get the closest date <= target
+    valid_rows = year_subset[year_subset['Date'] <= target_date]
+
+    if valid_rows.empty:
+        continue  # No earlier date in that month for that year
+
+    closest_row = valid_rows.sort_values('Date', ascending=False).iloc[0]
+    yearly_data = pd.concat([yearly_data, pd.DataFrame([closest_row])])
+
+# Reset and sort by date ascending before adding trends
+yearly_data = yearly_data.sort_values('Date').reset_index(drop=True)
 yearly_data['Trend'] = ''
 
-# Iterate through each row starting from the second row
 for i in range(1, len(yearly_data)):
-    # Get the closing price of the current row and the previous row
-    current_close = yearly_data.at[i, 'Close']  # close price at current row
-    previous_close = yearly_data.at[i - 1, 'Close']  # close price at row before the previous
+    current_close = yearly_data.at[i, 'Close']
+    previous_close = yearly_data.at[i - 1, 'Close']
 
-    # Compare current close with previous close
     if current_close > previous_close:
-        yearly_data.at[i, 'Trend'] = '↑'  # Up arrow
+        yearly_data.at[i, 'Trend'] = '↑'
     elif current_close < previous_close:
-        yearly_data.at[i, 'Trend'] = '↓'  # Down arrow
+        yearly_data.at[i, 'Trend'] = '↓'
     else:
-        yearly_data.at[i, 'Trend'] = '■'  # Square
+        yearly_data.at[i, 'Trend'] = '■'
 
-# Set the indicator for the first row as yellow square since there is no previous row
-yearly_data.at[0, 'Trend'] = '■'
+if not yearly_data.empty:
+    yearly_data.at[0, 'Trend'] = '■'
 
-# Check if we have at least 3 distinct years of data
+# Change the Price Change and percentage change columns to change from day to day to year over year
+# Drop columns 'Price Change' and 'Percentage Change' safely
+yearly_data = yearly_data.drop(columns=['Price Change', 'Percentage Change'], errors='ignore')
+
+# Sort by Date (ascending), if not already sorted
+yearly_data = yearly_data.sort_values('Date').reset_index(drop=True)
+
+# Add columns for Year-over-Year (YOY) price change and YOY % change
+yearly_data['Price Change'] = yearly_data['Close'].diff()  # Price difference between current and previous year
+yearly_data['Percentage Change'] = (yearly_data['Price Change'] / yearly_data['Close'].shift(1)) * 100  # Percentage change
+
+# Optionally, you can round the YOY values to make it more readable
+yearly_data['Price Change'] = yearly_data['Price Change'].round(2)
+yearly_data['Percentage Change'] = yearly_data['Percentage Change'].round(2)
+
+# The final dataframe now has the YOY changes calculated and added as the last columns
+
+# Check if we have at least 2 years of data
 unique_years = yearly_data['Date'].dt.year.nunique()
-
-# Add a load halt if there's not enough data
 if unique_years < 2:
-
-    # Then show the styled error message separately
     st.error("This ticker doesn't have enough historical data or metrics available to run analysis 😕\n\nPlease try another ticker.")
-
-    # Show cogwheel animation (renders properly)
     st.markdown(animation.warning_animation(2), unsafe_allow_html=True)
-
     st.stop()
+
 
 
 # -------------------------------- Data: Calculate and Create Variables for Simulations / Risk Models ---------------------------------------
@@ -409,45 +434,47 @@ with kpi_col1:
 with kpi_col2:
     kpi_col2 = st.container(border=True)
     with kpi_col2:
-        # Get the index of the last row (current year)
-        previous_year_index = yearly_data.index[-1]
+        def get_closest_price_before_date(df, year, target_month, target_day):
+            try:
+                target_date = pd.Timestamp(year=year, month=target_month, day=target_day)
+            except ValueError:
+                return None  # Invalid date like Feb 30
 
-        # Retrieve the 'Close' price of the previous year dynamically
-        try:
-            price_year_ago = yearly_data[yearly_data['Date'].dt.year == dv.last_yr]['Close'].iloc[0]
-        except IndexError:
-            # Handle case where if there is an index error (no data available for the previous year)
-            # it takes the current price instead
-            price_year_ago = yearly_data[yearly_data['Date'].dt.year == dv.current_yr]['Close'].iloc[0]
+            year_data = df[df['Date'].dt.year == year]
+            year_data = year_data[year_data['Date'] <= target_date]
 
-        # Get change # & percentage:
-        YOY_difference = selected_stock_regular_market_price - price_year_ago
-        YOY_difference_number = round(YOY_difference, 2)  # round the number to two decimal points
+            if not year_data.empty:
+                closest_row = year_data.sort_values('Date', ascending=False).iloc[0]
+                return closest_row['Close']
+            else:
+                return None
 
-        YOY_difference_percentage = (YOY_difference / price_year_ago)
-        YOY_difference_percentage = round(YOY_difference_percentage * 100)
+        # Get fallback price from last year and current year
+        price_last_year = get_closest_price_before_date(selected_stock_price_history_df, dv.last_yr, dv.current_mth, dv.current_day)
+        price_current_year = get_closest_price_before_date(selected_stock_price_history_df, dv.current_yr, dv.current_mth, dv.current_day)
 
-        # Create a trend icon for if the YOY price is positive or negative:
-        if YOY_difference_percentage > 0:
-            trend_icon = positive_icon  # Use positive trend icon
-        elif YOY_difference_percentage < 0:
-            trend_icon = negative_icon  # Use negative trend icon
-        else:
-            trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
+        # Decide what to use for YOY comparison
+        price_year_ago = price_last_year or price_current_year
 
-        # Give title for YOY trend metric
-        kpi_col2.write("YOY Price Change:")
+        if price_year_ago is not None:
+            YOY_difference = selected_stock_regular_market_price - price_year_ago
+            YOY_difference_number = round(YOY_difference, 2)
+            YOY_difference_percentage = round((YOY_difference / price_year_ago) * 100)
 
-        # YOY Price Difference in 1 year ($ & % Difference Concatenated)
-        YOY_Price_Change = (
-                "$" + str(YOY_difference_number) + " | " + str(YOY_difference_percentage) + "% " + trend_icon)
+            if YOY_difference_percentage > 0:
+                trend_icon = positive_icon
+            elif YOY_difference_percentage < 0:
+                trend_icon = negative_icon
+            else:
+                trend_icon = neutral_icon
 
-        # Write 1 Year Forecast Diff to Home Page
-        if YOY_Price_Change is not None:
-            # Write the value to the app for today in KPI format if the data is available
+            YOY_Price_Change = f"${YOY_difference_number} | {YOY_difference_percentage}% {trend_icon}"
+
+            kpi_col2.write("YOY Price Change:")
             kpi_col2.markdown(YOY_Price_Change, unsafe_allow_html=True)
+
         else:
-            kpi_col2.warning(f"YOY Price Change: Data Not Available")
+            kpi_col2.warning("YOY Price Change: No valid historical price found.")
 # ------------------------- Add KPI for YOY change in price from last year to this year from yesterday ---------------------------------------
 
 # ------------------------------ Add KPI for Avg YOY price change over last 10 years from yesterday -----------------------------------------
@@ -877,6 +904,17 @@ with home_tab1:
 
             # Apply the style function above to the "Trend" column
             styled_df = yearly_data.style.map(highlight_trend, subset=['Trend'])
+
+            # Round values and format percentage column
+            styled_df = styled_df.format({
+                'Close': '{:.2f}',
+                'High': '{:.2f}',
+                'Low': '{:.2f}',
+                'Open': '{:.2f}',
+                'Volume': '{:.0f}',  # Assuming volume is an integer
+                'Price Change': '{:.2f}',
+                'Percentage Change': '{:.2f}%'  # Format percentage column to show two decimal places
+            })
 
             # Assign again as yearly_df
             yearly_data = styled_df
