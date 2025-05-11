@@ -356,7 +356,7 @@ selected_stock_score, selected_stock_grade, selected_stock_grade_color_backgroun
 if selected_stock_score is not None:
     # Display the grade in a rounded box with the grade color
     st.markdown(f"""
-        <div style="background-color:{selected_stock_grade}; 
+        <div style="background-color:{selected_stock_grade_color_background}; 
                     color:white; 
                     font-size:20px; 
                     font-weight:bold; 
@@ -873,17 +873,21 @@ with home_tab1:
         with sh_c.container(border=True):
 
             # Apply HTML formatting for "Price Trend" column to add as a column in the df
-            def highlight_trend(val):
-                if val == '↑':
-                    color = 'green'
-                elif val == '↓':
-                    color = 'red'
-                elif val == '■':
+            def highlight_trend(row):
+                trend = row['Trend']
+                if trend == '↑':
+                    color = '#388E3C'
+                elif trend == '↓':
+                    color = '#D32F2F'
+                elif trend == '■':
                     color = 'grey'
                 else:
                     color = 'black'
-                return f'color: {color}'
-
+                # Apply color only to specific columns
+                return [
+                    f'color: {color}' if col in ['Trend', 'Price Change', 'Percentage Change'] else ''
+                    for col in row.index
+                    ]
 
             # Drop columns not needed for the visual
             yearly_data = yearly_data.drop(columns=['Year', 'Returns', 'Excess_Returns'])
@@ -902,18 +906,16 @@ with home_tab1:
                                                col != 'Trend']  # variable for columns
             yearly_data = yearly_data[yearly_data_columns]
 
-            # Apply the style function above to the "Trend" column
-            styled_df = yearly_data.style.map(highlight_trend, subset=['Trend'])
-
-            # Round values and format percentage column
-            styled_df = styled_df.format({
+            styled_df = yearly_data.style \
+                .apply(highlight_trend, axis=1) \
+                .format({
                 'Close': '{:.2f}',
                 'High': '{:.2f}',
                 'Low': '{:.2f}',
                 'Open': '{:.2f}',
-                'Volume': '{:.0f}',  # Assuming volume is an integer
+                'Volume': '{:.0f}',
                 'Price Change': '{:.2f}',
-                'Percentage Change': '{:.2f}%'  # Format percentage column to show two decimal places
+                'Percentage Change': '{:.2f}%'
             })
 
             # Assign again as yearly_df
@@ -990,19 +992,19 @@ with home_tab1:
                     # Logic to decide if it's a good buy or sell based on the crossover
                     if selected_stock_sma_percentage_difference > 5:
                         signal = "Bullish Momentum"
-                        color = "rgba(0, 177, 64, 0.6)"  # Green color for Buy
+                        color = "#388E3C"  # Green color for Buy
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "BUY"
                         indicator = f"{selected_stock_sma_percentage_difference:.2f}% Price Differential*"
                     if selected_stock_sma_percentage_difference < -5:
                         signal = "Bearish Momentum"
-                        color = "rgba(244, 67, 54, 0.6)"  # Red color for Sell
+                        color = "#D32F2F"  # Red color for Sell
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "SELL"
                         indicator = f"{selected_stock_sma_percentage_difference:.2f}% Price Differential*"
                     else:
                         signal = "Neutral Momentum"
-                        color = "rgba(255, 255, 0, 0.6)"  # Yellow color for Neutral
+                        color = "#C79200"  # Yellow color for Neutral
                         text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                         action = "HOLD"
                         indicator = f"{selected_stock_sma_percentage_difference:.2f}% Price Differential*"
@@ -1066,15 +1068,15 @@ with home_tab1:
                 # Write a buy, hold, sell momentum "if" logic based on rsi
                 if selected_stock_rsi_score > 70:
                     signal = "Currently Overbought - Consider Sell*"
-                    color = "rgba(244, 67, 54, 0.6)"  # Sell signal in red
+                    color = "#D32F2F"  # Sell signal in red
                     text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                 elif selected_stock_rsi_score < 30:
                     signal = "Currently Oversold - Consider Buy*"
-                    color = "rgba(0, 177, 64, 0.6)"  # Buy signal in green
+                    color = "#388E3C"  # Buy signal in green
                     text_color = "white"  # Setting as white but leaving a variable if want to change in the future
                 else:
                     signal = "Neutral Momentum - Consider Holding*"
-                    color = "rgba(255, 255, 0, 0.6)"  # Neutral signal in yellow
+                    color = "#C79200"  # Neutral signal in yellow
                     text_color = "white"  # Setting as white but leaving a variable if want to change in the future
 
                 # Provide visual title
@@ -1130,7 +1132,7 @@ with home_tab1:
                         y=selected_stock_macd_df['MACD'],
                         mode='lines',
                         name='MACD',
-                        line=dict(color='rgba(255, 255, 0, 0.6)')))  # yellow
+                        line=dict(color='rgba(240, 194, 0, 0.8)')))  # yellow
 
                     # Add Signal Line
                     fig.add_trace(go.Scatter(
@@ -1138,14 +1140,14 @@ with home_tab1:
                         y=selected_stock_macd_df['Signal'],
                         mode='lines',
                         name='Signal',
-                        line=dict(color='rgba(244, 67, 54, 0.6)')))  # red
+                        line=dict(color='rgba(200, 55, 45, 0.8)')))  # red
 
                     # Add Histogram (Difference between MACD and Signal)
                     fig.add_trace(go.Bar(
                         x=selected_stock_macd_df['Date'],
                         y=selected_stock_macd_df['Histogram'],
                         name='Histogram',
-                        marker=dict(color='rgba(128, 128, 128, 0.6)'),
+                        marker=dict(color='rgba(180, 180, 180, 1)'),
                     ))
 
                     # Update layout with titles and axis labels
@@ -1226,49 +1228,72 @@ with home_tab1:
             st.markdown("<h4 style='text-align: center;'>Monte Carlo Simulation - 1 Year Trading Period</h3>",
                         unsafe_allow_html=True)
 
-            # Plot the simulation and percentiles together
-            plt.figure(figsize=(10, 4))
+            # Define the number of days (assuming your simulation is over 252 trading days, adjust if needed)
+            num_days = selected_stock_mc_sim_df.shape[0]  # This is the number of rows in your DataFrame, assuming it's daily data
 
-            mc_simulations_num = len(selected_stock_mc_sim_df)  # get simulation number
+            # Generate the range of days for the x-axis (e.g., 1 to num_days)
+            x_axis = list(range(num_days))
 
-            # Set color map
-            mc_colormap = plt.cm.plasma  # sets to "plasma" color map for variable
-            mc_colors = [mc_colormap(i / mc_simulations_num) for i in
-                         range(mc_simulations_num)]  # applies color map to iterations
+            # Initialize the figure
+            fig = go.Figure()
 
-            # Plot all simulated paths
-            for i in range(mc_simulations_num):
-                plt.plot(selected_stock_mc_sim_df.iloc[:, i], color=mc_colors[i], alpha=0.1)
+            # Set color map (replicate the "plasma" color map from matplotlib)
+            mc_colormap = plt.cm.plasma  # Set to "plasma" colormap
+            mc_colors = [mc_colormap(i / len(selected_stock_mc_sim_df.columns)) for i in range(len(selected_stock_mc_sim_df.columns))]
 
-            # Plot the percentiles on top
-            plt.plot(mc_percentile_5, label="5th Percentile", color='red', linestyle='--', linewidth=1)
-            plt.plot(mc_percentile_50, label="50th Percentile (Median)", color='white', linestyle='--', linewidth=1)
-            plt.plot(mc_percentile_95, label="95th Percentile", color='green', linestyle='--', linewidth=1)
+            # Plot the Monte Carlo simulations (with the faded color)
+            for i in range(selected_stock_mc_sim_df.shape[1]):
+                fig.add_trace(go.Scatter(
+                    x=x_axis,  # Use the generated x-axis
+                    y=selected_stock_mc_sim_df.iloc[:, i],  # Simulation data
+                    mode='lines',
+                    line=dict(color=f'rgba({int(mc_colors[i][0] * 255)}, {int(mc_colors[i][1] * 255)}, {int(mc_colors[i][2] * 255)}, 0.1)'),  # Faded color using rgba
+                    showlegend=False
+                ))
 
-            # plot labels
-            plt.xlabel('Days', fontsize=6, family='sans-serif',
-                       color=(1, 1, 1, 0.7))  # 50% transparent white; couldn't use "alpha"
-            plt.ylabel('Price', fontsize=6, family='sans-serif', color=(1, 1, 1, 0.7))  # 50% transparent white
-            plt.legend(fontsize=6, frameon=False, labelcolor='white')
+            # Add the percentiles (5th, Median, 95th percentiles)
+            fig.add_trace(go.Scatter(
+                x=x_axis,  # Use the generated x-axis
+                y=mc_percentile_5,
+                name="5th Percentile",
+                line=dict(color='red', dash='dash')
+            ))
+            fig.add_trace(go.Scatter(
+                x=x_axis,  # Use the generated x-axis
+                y=mc_percentile_50,
+                name="Median",
+                line=dict(color='#FFE87C', dash='dash')
+            ))
+            fig.add_trace(go.Scatter(
+                x=x_axis,  # Use the generated x-axis
+                y=mc_percentile_95,
+                name="95th Percentile",
+                line=dict(color='green', dash='dash')
+            ))
 
-            # Set the background to transparent (so it matches app background)
-            plt.gcf().patch.set_facecolor('none')  # Transparent figure background
-            plt.gca().patch.set_facecolor('none')  # Transparent axes background
+            # Layout adjustments
+            fig.update_layout(
+                # title="Monte Carlo Simulation - 1 Year Trading Period",
+                xaxis_title="Days",
+                yaxis_title="Price",
+                template="plotly_dark" if st.get_option("theme.base") == "dark" else "plotly_white",  # Adjusting for dark/light mode
+                height=400,
+                margin=dict(l=40, r=40, t=40, b=40),
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255, 255, 255, 0.3)' if st.get_option("theme.base") == "dark" else 'rgba(0, 0, 0, 0.1)',  # Adjust grid color based on theme
+                    zerolinecolor='rgba(255, 255, 255, 0.5)' if st.get_option("theme.base") == "dark" else 'rgba(0, 0, 0, 0.3)',  # Zero line color
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255, 255, 255, 0.3)' if st.get_option("theme.base") == "dark" else 'rgba(0, 0, 0, 0.1)',  # Adjust grid color based on theme
+                    zerolinecolor='rgba(255, 255, 255, 0.5)' if st.get_option("theme.base") == "dark" else 'rgba(0, 0, 0, 0.3)',  # Zero line color
+                ),
+                legend=dict(font=dict(size=10))
+            )
 
-            # Change the ticks color to 50% transparent white (use RGBA format for color)
-            plt.tick_params(axis='both', colors=(1, 1, 1, 0.5))  # 50% transparent white for ticks
-
-            # Change the outer grid and spines to transparent
-            for spine in plt.gca().spines.values():
-                spine.set_edgecolor('none')
-                # spine.set_linewidth(0.5)
-                # spine.set_alpha(0.5)
-
-            # Adjust the layout to fit within the Streamlit container
-            plt.tight_layout()
-
-            # Display the combined plot in Streamlit
-            st.pyplot(plt)
+            # Display the Plotly chart in Streamlit
+            st.plotly_chart(fig, use_container_width=True)
 
             # Monte Carlo Explanation
             with st.expander("Monte Carlo*"):
@@ -1396,13 +1421,31 @@ with home_tab3:
         # ----------------- Yahoo Finance Grades
         # Display the DataFrame in Streamlit
         st.write("Year End Price Predictions:")
-        st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
+
+        # Check if DataFrame is valid and not empty
+        if selected_stock_analyst_targets_df is None or selected_stock_analyst_targets_df.empty:  # Use .empty to check if an empty df was returned and not just none
+
+            # Use Streamlit warning if no data is available
+            st.warning(f"No analyst price targets available for {selected_stock}.")
+
+        # write df to app if not empty
+        else:
+            st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
         # ----------------- Yahoo Finance Grades
 
         # ----------------- Agency Grades
         # Display the DataFrame in Streamlit
         st.write("Analyst Recommendations:")
-        st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
+
+        # Check if DataFrame is valid and not empty
+        if selected_stock_analyst_recommendations_df is None or selected_stock_analyst_recommendations_df.empty:  # Use .empty to check if an empty df was returned and not just none
+
+            # Use Streamlit warning if no data is available
+            st.warning(f"No analyst recommendation data available for {selected_stock}.")
+
+        # write df to app if not empty
+        else:
+            st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
         # ----------------- Agency Grades
 
 # ///////////////////////////////////////////////////////////// Chat Bot Tab //////////////////////////////////////////////////////////////////////////

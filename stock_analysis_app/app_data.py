@@ -387,7 +387,7 @@ class AppData:
         # Check if the response is valid (not empty)
         if not analyst_price_targets:
             # Use Streamlit warning if no data is available
-            st.warning(f"No analyst price target data available for {ticker}.")
+            # st.warning(f"No analyst price target data available for {ticker}.")
             return None  # Return None if no data is available
 
         # Convert the yfinance stock analyst dictionary into a DataFrame
@@ -404,8 +404,8 @@ class AppData:
         # Check if DataFrame is valid and not empty
         if analyst_buy_sell_recommendations_df is None or analyst_buy_sell_recommendations_df.empty:  # Use .empty to check if an empty df was returned and not just none
 
-            # Use Streamlit warning if no data is available
-            st.warning(f"No analyst recommendation data available for {ticker}.")
+            # # Use Streamlit warning if no data is available
+            # st.warning(f"No analyst recommendation data available for {ticker}.")
             return None  # Return None if no data is available
 
         return analyst_buy_sell_recommendations_df

@@ -435,56 +435,69 @@ class StockGradeModel:
         # Determine grade and color based on total score
         if total_score >= 0.97:
             grade = "S"
-            grade_color_background = "rgba(255, 215, 0, 0.5)"  # Gold for S with 50% transparency
-            grade_color_outline = "rgba(255, 215, 0, 0.7)"  # Gold for S with 70% transparency
+            grade_color_background = "rgba(212, 175, 55, 0.85)"  # Rich gold
+            grade_color_outline = "rgba(212, 175, 55, 1.0)"
+
         elif total_score >= 0.94:
             grade = "A"
-            grade_color_background = "rgba(34, 139, 34, 0.5)"  # Forest green for A with 50% transparency
-            grade_color_outline = "rgba(34, 139, 34, 0.7)"  # Forest green for A with 70% transparency
+            grade_color_background = "rgba(34, 139, 84, 0.85)"  # Deep forest green
+            grade_color_outline = "rgba(34, 139, 84, 1.0)"
+
         elif total_score >= 0.90:
             grade = "A-"
-            grade_color_background = "rgba(50, 205, 50, 0.5)"  # Lime green for A- with 50% transparency
-            grade_color_outline = "rgba(50, 205, 50, 0.7)"  # Lime green for A- with 70% transparency
+            grade_color_background = "rgba(50, 160, 75, 0.85)"  # Balanced green
+            grade_color_outline = "rgba(50, 160, 75, 1.0)"
+
         elif total_score >= 0.87:
             grade = "B+"
-            grade_color_background = "rgba(60, 179, 113, 0.5)"  # Medium sea green for B+ with 50% transparency
-            grade_color_outline = "rgba(60, 179, 113, 0.7)"  # Medium sea green for B+ with 70% transparency
+            grade_color_background = "rgba(72, 201, 137, 0.85)"  # Jade green
+            grade_color_outline = "rgba(72, 201, 137, 1.0)"
+
         elif total_score >= 0.84:
             grade = "B"
-            grade_color_background = "rgba(102, 205, 170, 0.5)"  # Medium aquamarine for B with 50% transparency
-            grade_color_outline = "rgba(102, 205, 170, 0.7)"  # Medium aquamarine for B with 70% transparency
+            grade_color_background = "rgba(102, 205, 170, 0.85)"  # Aquamarine
+            grade_color_outline = "rgba(102, 205, 170, 1.0)"
+
         elif total_score >= 0.80:
             grade = "B-"
-            grade_color_background = "rgba(152, 251, 152, 0.5)"  # Pale green for B- with 50% transparency
-            grade_color_outline = "rgba(152, 251, 152, 0.7)"  # Pale green for B- with 70% transparency
+            grade_color_background = "rgba(144, 238, 144, 0.85)"  # Light green
+            grade_color_outline = "rgba(144, 238, 144, 1.0)"
+
         elif total_score >= 0.77:
             grade = "C+"
-            grade_color_background = "rgba(173, 255, 47, 0.5)"  # Green yellow for C+ with 50% transparency
-            grade_color_outline = "rgba(173, 255, 47, 0.7)"  # Green yellow for C+ with 70% transparency
+            grade_color_background = "rgba(205, 220, 57, 0.85)"  # Olive yellow
+            grade_color_outline = "rgba(205, 220, 57, 1.0)"
+
         elif total_score >= 0.74:
             grade = "C"
-            grade_color_background = "rgba(252, 226, 5, 0.5)"  # Bumblebee for C with 50% transparency
-            grade_color_outline = "rgba(252, 226, 5, 0.7)"  # Bumblebee for C with 70% transparency
+            grade_color_background = "rgba(255, 215, 0, 0.85)"  # Deeper yellow
+            grade_color_outline = "rgba(255, 215, 0, 1.0)"
+
         elif total_score >= 0.70:
             grade = "C-"
-            grade_color_background = "rgba(255, 165, 0, 0.5)"  # Orange for C- with 50% transparency
-            grade_color_outline = "rgba(255, 165, 0, 0.7)"  # Orange for C- with 70% transparency
+            grade_color_background = "rgba(255, 165, 0, 0.85)"  # Bright orange
+            grade_color_outline = "rgba(255, 165, 0, 1.0)"
+
         elif total_score >= 0.67:
             grade = "D+"
-            grade_color_background = "rgba(255, 140, 0, 0.5)"  # Dark orange for D+ with 50% transparency
-            grade_color_outline = "rgba(255, 140, 0, 0.7)"  # Dark orange for D+ with 70% transparency
+            grade_color_background = "rgba(255, 140, 0, 0.85)"  # Dark orange
+            grade_color_outline = "rgba(255, 140, 0, 1.0)"
+
         elif total_score >= 0.64:
             grade = "D"
-            grade_color_background = "rgba(255, 69, 0, 0.5)"  # Orange red for D with 50% transparency
-            grade_color_outline = "rgba(255, 69, 0, 0.7)"  # Orange red for D with 70% transparency
+            grade_color_background = "rgba(255, 80, 60, 0.85)"  # Soft red-orange
+            grade_color_outline = "rgba(255, 80, 60, 1.0)"
+
         elif total_score >= 0.60:
             grade = "D-"
-            grade_color_background = "rgba(255, 99, 71, 0.5)"  # Tomato for D- with 50% transparency
-            grade_color_outline = "rgba(255, 99, 71, 0.7)"  # Tomato for D- with 70% transparency
+            grade_color_background = "rgba(255, 99, 71, 0.85)"  # Tomato
+            grade_color_outline = "rgba(255, 99, 71, 1.0)"
+
         else:
             grade = "F"
-            grade_color_background = "rgba(255, 0, 0, 0.5)"  # Red for F with 50% transparency
-            grade_color_outline = "rgba(255, 0, 0, 0.7)"  # Red for F with 70% transparency
+            grade_color_background = "rgba(200, 30, 30, 0.85)"  # Deeper red
+            grade_color_outline = "rgba(200, 30, 30, 1.0)"
+
 
         return total_score, grade, grade_color_background, grade_color_outline, score_details
 
