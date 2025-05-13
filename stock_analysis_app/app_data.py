@@ -30,6 +30,7 @@ class AppData:
 
     # Method to retrieve a full list of filtered tickers
     @staticmethod
+    @st.cache_data  # cache ticker list
     def filtered_tickers():
         """Fetch and filter NASDAQ and NYSE stock tickers."""
         # Retrieve NASDAQ tickers (pull from open source github repo):
@@ -60,7 +61,7 @@ class AppData:
 
 
     @staticmethod
-    @st.cache_data
+    @st.cache_data  # cache data
     def load_price_hist_data(ticker, start_date=None, end_date=None):
 
         # Convert string dates to datetime objects if provided
@@ -143,6 +144,7 @@ class AppData:
 
     # Method to Retrieve the Latest Close Price and Date as Fields
     @staticmethod
+    @st.cache_data  # cache data
     def get_last_close_price_date(stock_data_df):
         # Remove rows where Close is NaN or None
         data_valid = stock_data_df.dropna(subset=['Close'])
@@ -158,6 +160,7 @@ class AppData:
 
     # Method to pull latest date stock metrics from yfinance / alpha vantage
     @staticmethod
+    @st.cache_data  # cache data
     def load_curr_stock_metrics(ticker="AAPL"):  # defaults ticker to apple if one isn't provided
         """
         Fetch stock data and handle errors gracefully.
@@ -349,6 +352,7 @@ class AppData:
 
     # Method to pull the Sharpe Ratio - this uses the load price history data
     @staticmethod
+    @st.cache_data  # cache data
     def calculate_sharpe_ratio(stock_data_df):
         stock_data_df['Returns'] = stock_data_df['Close'].pct_change()  # pandas pct change method
 
@@ -380,6 +384,7 @@ class AppData:
 
     # Method to fetch analyst ratings from yahoo finance and dconvert to a df.
     @staticmethod
+    @st.cache_data  # cache analyst prices
     def fetch_yf_analyst_price_targets(ticker):
         # Fetch Analyst Price Target Data
         analyst_price_targets = yf.Ticker(ticker).analyst_price_targets  # Returns a dictionary of targets
@@ -397,6 +402,7 @@ class AppData:
 
     # Method to fetch analyst ratings from yahoo finance and dconvert to a df.
     @staticmethod
+    @st.cache_data  # cache data
     def fetch_yf_analyst_recommendations(ticker):
         # Fetch analyst recommendations
         analyst_buy_sell_recommendations_df = yf.Ticker(ticker).get_recommendations()  # Comes through as a df when the method is called
@@ -412,6 +418,7 @@ class AppData:
 
     # Create a df for moving average data to run SMA simulation
     @staticmethod
+    @st.cache_data  # cache data
     def get_simple_moving_avg_data_df(stock_data_df):
         """Calculate 50-day and 200-day Simple Moving Averages (SMAs)"""
         # Make a copy of the original dataframe to avoid modifying it
@@ -425,6 +432,7 @@ class AppData:
 
     # Create a df with exponential smoothing for price history smoothed line tracing
     @staticmethod
+    @st.cache_data  # cache data
     def apply_exponential_smoothing(stock_data_df, smoothing_level=0.001):  # .2 = default alpha
         """
         Apply Simple Exponential Smoothing to the stock closing prices.
@@ -447,6 +455,7 @@ class AppData:
 
     # Create a df to get the latest RSI value by calculating the RSI by day
     @staticmethod
+    @st.cache_data  # cache data
     def get_latest_rsi(stock_data_df, window=14):
         # Make a copy to avoid modifying the original DataFrame
         rsi_data = stock_data_df.copy()
@@ -469,6 +478,7 @@ class AppData:
 
     # Create a df to run MACD simulations on
     @staticmethod
+    @st.cache_data  # cache data
     # Calculate MACD and Signal line to provide insight on short term trend momentum and strength
     def get_macd_df(stock_data_df, fast=12, slow=26, signal=9):
 
@@ -495,6 +505,7 @@ class AppData:
 
     # Create a df for Monte Carlo Simulation
     @staticmethod
+    @st.cache_data  # cache data
     def get_monte_carlo_df(stock_data_df, mc_simulations_num=1000, mc_days_num=252):
         # Make a copy to avoid modifying the original DataFrame
         mc_sim_df = stock_data_df.copy()
@@ -536,6 +547,7 @@ class AppData:
 
     # Calculate the VaR
     @staticmethod
+    @st.cache_data  # cache data
     # Define function to calculate Historical VaR at 95% confidence level
     def calculate_historical_VaR(stock_data_df, time_window='daily'):
         """
@@ -602,6 +614,7 @@ class AppData:
 
     # Get Industry Averages Method
     @staticmethod
+    @st.cache_data  # cache data
     def get_industry_averages_df():
 
         # URL of the webpages containing ratios by industry
@@ -768,6 +781,7 @@ class AppData:
 
     # Get Forecast Data Method (w/ META Prophet Model)
     @staticmethod
+    @st.cache_data  # cache data
     def get_forecasted_data_df(stock_data_df, forecasted_year_range):
         """
         Note: (For Our Time Series Analysis, We will use the Prophet Time series Model from META)
@@ -790,7 +804,6 @@ class AppData:
                                             "Close": "y"})  # create a dictionary to rename the columns (must rename columns for META Prophet to read data [in documentation]. Documentation Link: https://facebook.github.io/prophet/docs/quick_start.html#python-api)
 
         # Function to train the model and generate forecasts
-        @st.cache_data()
         def train_model(df_train):
             # Fit Prophet model
             m = Prophet()
