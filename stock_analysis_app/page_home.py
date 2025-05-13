@@ -1372,9 +1372,6 @@ def render_home_page_data(ticker: str):
 
 # -------- Sidebar: Add Dropdowns containing notes on metrics
 
-# Dropdown header
-st.sidebar.header('Choose Stock & Forecast Range')  # provide sidebar header
-
 # Create Var for filtered list of tickers that will be used throughout the app
 ticker_list = data.filtered_tickers()
 
