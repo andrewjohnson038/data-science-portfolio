@@ -2,6 +2,8 @@
 import streamlit as st  # Import streamlit (app Framework)
 import sys
 import os
+import pandas as pd
+from datetime import datetime
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,7 +80,8 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
 sh_g = st.container()
 
 # Set Up Date for Search
-ticker_list = data.filtered_tickers()  # Get ticker list
+sample_ticker_list = ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA"]
+ticker_list = data.filtered_tickers()
 
 # Ticker Search Section
 sh_g.write("Ticker Grade Search:")
@@ -86,5 +89,181 @@ sh_g.write("Ticker Grade Search:")
 # Write Grades Search to App
 with sh_g.container():
 
+    # Create a Process Method to update the batch df in app
+    def load_or_update_grades(ticker_grades_batch_df, ticker_list, force_update=False):
+        """
+        Load grades from data frame or update them if needed.
+
+        Parameters:
+        ticker_grades_batch_df (DataFrame): Dataframe of the batched tickers
+        ticker_list (list): List of tickers to process
+        force_update (bool): If True, force update regardless of last update date
+
+        Returns:
+        DataFrame with updated ticker grades on new batch date after load
+        """
+
+        # Directly use the passed DataFrame
+        update_needed = force_update
+
+        if not update_needed and not ticker_grades_batch_df.empty:
+            last_update = datetime.strptime(ticker_grades_batch_df['Update_Date'].iloc[0], "%Y-%m-%d")
+            days_since_update = (datetime.now() - last_update).days
+
+            # Update if more than 7 days since last update
+            if days_since_update >= 7:
+                update_needed = True
+        else:
+            update_needed = True
+
+        if update_needed:
+            st.info("Updating all stock grades - this will take several hours. The app will be unavailable during this time :).")
+            grades_df = GradeBatchMethods.batch_process_tickers(ticker_list)
+
+            # Return updated DataFrame
+            return grades_df
+        else:
+            return ticker_grades_batch_df
+
+    def add_ticker_grades_section(ticker_list):
+        """
+        Add a ticker grades section to your Streamlit app
+
+        Parameters:
+        ticker_list (list): List of Tickers to process
+        """
+
+        # Create an empty DataFrame as fallback
+        empty_df = pd.DataFrame(columns=['Ticker', 'Grade', 'Score', 'Industry', 'Update_Date'])
+
+        # Try to load existing grades if available
+        try:
+            if 'grades_df' not in st.session_state:
+                st.session_state['grades_df'] = empty_df
+            existing_grades_df = st.session_state['grades_df']
+
+            # Check if update is needed (7 days passed)
+            update_needed = False
+            if not existing_grades_df.empty:
+                last_update = datetime.strptime(existing_grades_df['Update_Date'].iloc[0], "%Y-%m-%d")
+                days_since_update = (datetime.now() - last_update).days
+                if days_since_update >= 7:
+                    update_needed = True
+                    st.warning(f"Grades are {days_since_update} days old. Consider updating for the latest data.")
+            else:
+                update_needed = True
+
+            # Add update button
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                update_clicked = st.button("Update Stock Grades", type="secondary" if update_needed else "secondary")
+
+            with col2:
+                if not existing_grades_df.empty:
+                    last_update = existing_grades_df['Update_Date'].iloc[0]
+                    st.info(f"Grades last updated on: {last_update}")
+
+            # If button is clicked, update the grades
+            if update_clicked:
+                with st.spinner("Updating stock grades..."):
+                    grades_df = GradeBatchMethods.batch_process_tickers(ticker_list)
+                    st.session_state['grades_df'] = grades_df
+                    # Here you would typically save the updated grades to a database or file
+            else:
+                # Use existing grades if available and no update requested
+                grades_df = existing_grades_df
+
+        except Exception as e:
+            st.error(f"Error loading grades: {str(e)}")
+            grades_df = empty_df
+
+        # Don't display anything else if we have no data and user hasn't clicked update
+        if grades_df.empty:
+            return
+
+        # Add filters
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            # Filter by grade
+            all_grades = ['All'] + sorted(grades_df['Grade'].unique().tolist())
+            selected_grade = st.selectbox("Filter by Grade", all_grades)
+
+        with col2:
+            # Filter by industry
+            all_industries = ['All'] + sorted(grades_df['Industry'].unique().tolist())
+            selected_industry = st.selectbox("Filter by Industry", all_industries)
+
+        with col3:
+            # Sort options
+            sort_options = ['Grade (Best First)', 'Grade (Worst First)', 'Score (High to Low)', 'Ticker (A-Z)']
+            sort_selection = st.selectbox("Sort by", sort_options)
+
+        # Apply filters
+        filtered_df = grades_df.copy()
+
+        if selected_grade != 'All':
+            filtered_df = filtered_df[filtered_df['Grade'] == selected_grade]
+
+        if selected_industry != 'All':
+            filtered_df = filtered_df[filtered_df['Industry'] == selected_industry]
+
+        # Apply sorting
+        if sort_selection == 'Grade (Best First)':
+            grade_order = {'S': 0, 'A': 1, 'A-': 2, 'B+': 3, 'B': 4, 'B-': 5, 'C+': 6, 'C': 7, 'C-': 8,
+                           'D+': 9, 'D': 10, 'D-': 11, 'F': 12, 'Error': 13}
+            filtered_df['grade_order'] = filtered_df['Grade'].map(grade_order)
+            filtered_df = filtered_df.sort_values('grade_order')
+            filtered_df = filtered_df.drop(columns=['grade_order'])
+        elif sort_selection == 'Grade (Worst First)':
+            grade_order = {'S': 0, 'A': 1, 'A-': 2, 'B+': 3, 'B': 4, 'B-': 5, 'C+': 6, 'C': 7, 'C-': 8,
+                           'D+': 9, 'D': 10, 'D-': 11, 'F': 12, 'Error': 13}
+            filtered_df['grade_order'] = filtered_df['Grade'].map(grade_order)
+            filtered_df = filtered_df.sort_values('grade_order', ascending=False)
+            filtered_df = filtered_df.drop(columns=['grade_order'])
+        elif sort_selection == 'Score (High to Low)':
+            filtered_df = filtered_df.sort_values('Score', ascending=False)
+        else:  # Ticker (A-Z)
+            filtered_df = filtered_df.sort_values('Ticker')
+
+        # Define a function to color the grades
+        def color_grades(val):
+            grade_colors = {
+                "S": "background-color: rgba(255, 215, 0, 0.5)",  # Gold
+                "A": "background-color: rgba(34, 139, 34, 0.5)",  # Forest green
+                "A-": "background-color: rgba(50, 205, 50, 0.5)",  # Lime green
+                "B+": "background-color: rgba(60, 179, 113, 0.5)",  # Medium sea green
+                "B": "background-color: rgba(102, 205, 170, 0.5)",  # Medium aquamarine
+                "B-": "background-color: rgba(152, 251, 152, 0.5)",  # Pale green
+                "C+": "background-color: rgba(173, 255, 47, 0.5)",  # Green yellow
+                "C": "background-color: rgba(252, 226, 5, 0.5)",  # Bumblebee
+                "C-": "background-color: rgba(255, 165, 0, 0.5)",  # Orange
+                "D+": "background-color: rgba(255, 140, 0, 0.5)",  # Dark orange
+                "D": "background-color: rgba(255, 69, 0, 0.5)",  # Orange red
+                "D-": "background-color: rgba(255, 99, 71, 0.5)",  # Tomato
+                "F": "background-color: rgba(255, 0, 0, 0.5)",  # Red
+                "Error": "background-color: rgba(128, 128, 128, 0.5)"  # Gray for errors
+            }
+
+            if val in grade_colors:
+                return grade_colors[val]
+            return ""
+
+        # Display the styled dataframe
+        st.dataframe(filtered_df.style.applymap(color_grades, subset=['Grade']), use_container_width=True)
+
+        # Show grade distribution
+        st.subheader("Grade Distribution")
+        grade_counts = grades_df['Grade'].value_counts().sort_index()
+        st.bar_chart(grade_counts)
+
     # Write Custom Model Grade to App
-    batch.add_ticker_grades_section(ticker_list, sh_g)
+    add_ticker_grades_section(ticker_list)
+
+
+# Any blocks written under here can use for testing directly from this file w/o importing the code below to the main
+# (this is a built-in syntax of python)
+if __name__ == "__main__":
+
+    # Test Ticker List Pull
+    print(ticker_list)
