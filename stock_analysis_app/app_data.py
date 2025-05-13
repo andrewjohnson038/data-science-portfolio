@@ -6,14 +6,13 @@ import yfinance as yf
 import streamlit as st
 import numpy as np
 import requests
-import json
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing  # import lib for applying exponential smoothing line
 from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
 from prophet import Prophet  # Import Prophet (META Time Series Model for Forecasting)
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
-from stock_analysis_app.app_constants import alpha_vantage_key, groq_key
+from stock_analysis_app.app_constants import alpha_vantage_key
 from stock_analysis_app.app_animations import CSSAnimations
 
 from datetime import datetime, timedelta
