@@ -498,12 +498,10 @@ class StockGradeModel:
             grade_color_background = "rgba(200, 30, 30, 0.85)"  # Deeper red
             grade_color_outline = "rgba(200, 30, 30, 1.0)"
 
-
         return total_score, grade, grade_color_background, grade_color_outline, score_details
 
 
-# Any blocks written under here can use for testing directly from this file w/o importing the code below to the main
-# (this is a built-in syntax of python)
+# ---- TEST BLOCK ----
 if __name__ == "__main__":
 
     # Get Test Data

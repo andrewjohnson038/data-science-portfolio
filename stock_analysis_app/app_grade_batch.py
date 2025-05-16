@@ -1,31 +1,143 @@
-# Import necessary libraries
-import streamlit as st
 import pandas as pd
 import time
+import boto3
+import io
 from datetime import datetime
+import streamlit as st
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_data import AppData
-from stock_analysis_app.app_animations import CSSAnimations
 from stock_analysis_app.app_stock_grading_model import StockGradeModel
 
-# Instantiate any imported classes here:
+# Instantiate necessary helper classes
 dv = DateVars()
-animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
 
-# for alpha vantage api
-alpha_vantage_key = st.secrets.get("Alpha_Vantage_API_Key")
 
-# Class for data dfs/variables used across the app
 class GradeBatchMethods:
 
-    # Create a Batch Process Method to load tickers to a dataframe in App
+    # AWS S3 Configuration
+
+    # Retrieve credentials from Streamlit secrets
+    aws_access_key_id = st.secrets["aws_access_key_id"]
+    aws_secret_access_key = st.secrets["aws_secret_access_key"]
+    aws_region = st.secrets["aws_region"]
+
+    # Create an S3 client using the credentials from Streamlit secrets
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        region_name=aws_region
+    )
+
+    bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
+    input_key = 'ticker_list_ref.csv'         # S3 object key for the input ticker list
+    output_key = 'ticker_grades_output.csv'   # S3 object key for the output file
+
+    # Batch Method to retrieve tickers based on csv ref in AWS
     @staticmethod
-    @st.cache_data(ttl=3600 * 24 * 7)  # Cache data for 7 days (1 week)
-    def batch_process_tickers(ticker_list, batch_size=400, rate_limit_delay=15):
+    def run_batch(batch_size=100, rate_limit_delay=5):
+        """
+        Executes the batch grading of stock tickers using a custom scoring model,
+        writes the results to CSV, and uploads the file back to S3.
+        """
+
+        # STEP 1: Load the ticker list from S3
+        ticker_csv_obj = GradeBatchMethods.s3.get_object(
+            Bucket=GradeBatchMethods.bucket_name,
+            Key=GradeBatchMethods.input_key
+        )
+        tickers_df = pd.read_csv(ticker_csv_obj['Body'])  # Read the S3 StreamingBody as a CSV
+        ticker_list = tickers_df['ticker'].dropna().tolist()  # Extract ticker column to list
+
+        # List to store results
+        results = []
+        batch_date = datetime.now().strftime("%Y-%m-%d")  # Current date for tagging results
+
+        # STEP 2: Process tickers in batches
+        for i in range(0, len(ticker_list), batch_size):
+            batch = ticker_list[i:i + batch_size]  # Subset of tickers for this batch
+
+            for ticker in batch:
+                try:
+                    # Load price and financial data
+                    price_hist_df = data.load_price_hist_data(ticker)
+                    stock_metrics_df = data.load_curr_stock_metrics(ticker)
+                    move_avg_df = data.get_simple_moving_avg_data_df(price_hist_df)
+
+                    # Calculate moving average difference
+                    sma_50 = move_avg_df['50_day_SMA'].iloc[-1]
+                    sma_200 = move_avg_df['200_day_SMA'].iloc[-1]
+                    sma_percent_diff = ((sma_50 - sma_200) / sma_200) * 100
+
+                    # Risk and return metrics
+                    var_95, _ = data.calculate_historical_VaR(price_hist_df, time_window='yearly')
+                    sharpe_ratio = data.calculate_sharpe_ratio(price_hist_df)
+                    rsi_score = data.get_latest_rsi(price_hist_df)
+
+                    # Forecasts and simulations
+                    _, forecasted_df = data.get_forecasted_data_df(price_hist_df, forecast_days=5)
+                    ind_avg_df = data.get_industry_averages_df()
+                    mc_sim_df = data.get_monte_carlo_df(price_hist_df, num_simulations=1000, num_days=252)
+
+                    # Calculate grade and score
+                    score, grade, _, _, _ = StockGradeModel.calculate_grades(
+                        ticker, stock_metrics_df, forecasted_df, ind_avg_df,
+                        mc_sim_df, sharpe_ratio, var_95, rsi_score, sma_percent_diff
+                    )
+
+                    # Get industry if available
+                    industry = "Unknown"
+                    if 'Industry' in stock_metrics_df.columns:
+                        industry = stock_metrics_df['Industry'].iloc[0] or "Unknown"
+
+                    # Append result
+                    results.append({
+                        'Ticker': ticker,
+                        'Grade': grade,
+                        'Score': round(score, 3),
+                        'Industry': industry,
+                        'Update_Date': batch_date
+                    })
+
+                    time.sleep(0.5)  # Gentle rate-limiting between tickers
+
+                except Exception as e:
+                    # Catch individual errors to avoid halting the batch
+                    print(f"Error processing {ticker}: {str(e)}")
+                    results.append({
+                        'Ticker': ticker,
+                        'Grade': 'Error',
+                        'Score': None,
+                        'Industry': 'Unknown',
+                        'Update_Date': batch_date
+                    })
+
+            # Delay between batches to respect rate limits / API quotas
+            if i + batch_size < len(ticker_list):
+                print(f"Waiting {rate_limit_delay} minutes before next batch...")
+                time.sleep(rate_limit_delay * 60)
+
+        # STEP 3: Upload results to S3 as CSV
+        results_df = pd.DataFrame(results)            # Convert list of results to DataFrame
+        csv_buffer = io.StringIO()                    # In-memory text buffer
+        results_df.to_csv(csv_buffer, index=False)    # Write DataFrame to CSV string
+
+        # Upload the CSV to S3
+        GradeBatchMethods.s3.put_object(
+            Bucket=GradeBatchMethods.bucket_name,
+            Key=GradeBatchMethods.output_key,
+            Body=csv_buffer.getvalue()
+        )
+
+        print(f"✅ Output uploaded to s3://{GradeBatchMethods.bucket_name}/{GradeBatchMethods.output_key}")
+
+    # Create a Batch Process Method to load tickers from a list for test
+    @staticmethod
+    def batch_process_from_list_test(ticker_list, batch_size=10, rate_limit_delay=15):
         """
         Process tickers in batches to stay under YFinance rate limits.
 
@@ -125,58 +237,48 @@ class GradeBatchMethods:
         # Return Batch in dataframe
         return ticker_grades_batch_df
 
-    # Create a Process Method to update the batch df in app
-    @staticmethod
-    def load_or_update_grades(ticker_grades_batch_df, ticker_list, force_update=False):
-        """
-        Load grades from data frame or update them if needed.
 
-        Parameters:
-        ticker_grades_batch_df (DataFrame): Dataframe of the batched tickers
-        ticker_list (list): List of tickers to process
-        force_update (bool): If True, force update regardless of last update date
-
-        Returns:
-        DataFrame with updated ticker grades on new batch date after load
-        """
-
-        # Directly use the passed DataFrame
-        update_needed = force_update
-
-        if not update_needed and not ticker_grades_batch_df.empty:
-            last_update = datetime.strptime(ticker_grades_batch_df['Update_Date'].iloc[0], "%Y-%m-%d")
-            days_since_update = (datetime.now() - last_update).days
-
-            # Update if more than 7 days since last update
-            if days_since_update >= 7:
-                update_needed = True
-        else:
-            update_needed = True
-
-        if update_needed:
-            st.info("Updating all stock grades - this will take several hours. The app will be unavailable during this time :).")
-            grades_df = GradeBatchMethods.batch_process_tickers(ticker_list)
-
-            # Return updated DataFrame
-            return grades_df
-        else:
-            return ticker_grades_batch_df
-
-# Add the ticker grades section to the app (use code below)
-# GradeBatchMethods.add_ticker_grades_section(ticker_list)
-
-
-# Any blocks written under here can use for testing directly from this file w/o importing the code below to the main
-# (this is a built-in syntax of python)
+# ---- TEST BLOCK ----
 if __name__ == "__main__":
 
-    # Test Ticker List Batch
-    test_ticker_list = [
-        "AAPL", "MSFT", "AMZN"]
+    # Test Connection
+    def test_aws_connection():
+        """
+        Tests the AWS connection by attempting to list S3 buckets using the credentials
+        currently available in the environment (e.g., from environment variables,
+        .streamlit/secrets.toml, or IAM roles if running on AWS).
+        """
+        try:
+            # Attempt to list all S3 buckets using the current boto3 client
+            response = GradeBatchMethods.s3.list_buckets()
 
-    # Run batch process directly
-    print("Running test batch...")
-    test_results_df = GradeBatchMethods.batch_process_tickers(test_ticker_list, batch_size=6, rate_limit_delay=0)
+            # If the request is successful, print the confirmation and list the bucket names
+            print("✅ AWS connection successful!")
+            print("Available buckets:")
+            for bucket in response['Buckets']:
+                print(f" - {bucket['Name']}")
 
-    # Print test results
+        # Handle specific exception for failed upload attempts (not expected here but included for completeness)
+        except boto3.exceptions.S3UploadFailedError as e:
+            print(f"S3 upload failed: {str(e)}")
+
+        # Handle missing credentials (likely cause of access issues)
+        except boto3.exceptions.NoCredentialsError:
+            print("❌ AWS credentials not found. Make sure they are set correctly in your environment or secrets.")
+
+        # Catch all other exceptions and print the error
+        except Exception as e:
+            print(f"❌ Error connecting to AWS: {str(e)}")
+
+    # Run AWS connection test
+    print("🔌 Testing AWS connection...")
+    test_aws_connection()
+
+    # Run test batch using test from list method to just test if batch is working
+    test_ticker_list = ["AAPL", "MSFT", "AMZN"]
+    print("🧪 Running test batch...")
+    test_results_df = GradeBatchMethods.batch_process_from_list_test(
+        test_ticker_list, batch_size=6, rate_limit_delay=0
+    )
+
     print(test_results_df)

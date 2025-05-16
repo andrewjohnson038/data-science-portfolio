@@ -837,8 +837,7 @@ class AppData:
         return trained_model, forecast_df
 
 
-# Any blocks written under here can use for testing directly from this file w/o importing the code below to the main
-# (this is a built-in syntax of python)
+# ---- TEST BLOCK ----
 if __name__ == "__main__":
 
     # Test the load_price_hist_data method and use for other tests using price history dfs
