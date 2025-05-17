@@ -16,14 +16,12 @@ from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_data import AppData
 from stock_analysis_app.app_animations import CSSAnimations
 from stock_analysis_app.app_stock_grading_model import StockGradeModel
-from stock_analysis_app.app_grade_batch import GradeBatchMethods
 
 # Instantiate any imported classes here:
 dv = DateVars()
 animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
-batch = GradeBatchMethods()
 
 
 # Cache and wrap home page render based on ticker selected

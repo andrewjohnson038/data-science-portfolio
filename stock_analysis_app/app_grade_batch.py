@@ -51,7 +51,7 @@ class GradeBatchMethods:
             Key=GradeBatchMethods.input_key
         )
         tickers_df = pd.read_csv(ticker_csv_obj['Body'])  # Read the S3 StreamingBody as a CSV
-        ticker_list = tickers_df['ticker'].dropna().tolist()  # Extract ticker column to list
+        ticker_list = tickers_df['Ticker'].dropna().tolist()  # Extract ticker column to list
 
         # List to store results
         results = []
