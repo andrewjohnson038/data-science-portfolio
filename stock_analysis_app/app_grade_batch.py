@@ -238,6 +238,9 @@ class GradeBatchMethods:
         return ticker_grades_batch_df
 
 
+# Run batch script (hash out if testing)
+GradeBatchMethods.run_batch()
+
 # ---- TEST BLOCK ----
 if __name__ == "__main__":
 
