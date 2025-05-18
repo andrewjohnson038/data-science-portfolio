@@ -1077,20 +1077,53 @@ def render_home_page_data(ticker: str):
             # Add a container for short-term trend section footnote expander:
             with sh_c.container():
 
-                # write expander to app
-                with st.expander(
-                        "Leveraging Short Term Models for Short-Term Buy/Sell/Hold Actions*"):  # add footnote drop-down
-                    st.markdown("""
-                    <span style="color:lightcoral; font-weight:bold;">**Relative Strength Index (RSI)**</span> is a momentum oscillator that provides a range from 0-100 to indicate if the asset is under or overpriced based on its speed and change of price movements.
-                    
-                    Interpret the RSI Ranges can be interpreted with the following logic:
-                    - <span style="color:lightcoral; font-weight:bold;">**RSI > 70**</span> = Likely Overbought (Sell Signal): The maximum expected loss for one day.
-                    - <span style="color:lightcoral; font-weight:bold;">**RSI ≈ 50**</span> = Neutral State: The maximum expected loss for one month.
-                    - <span style="color:lightcoral; font-weight:bold;">**RSI < 30**</span> = Likely Oversold (Buy Signal): The maximum expected loss for one year.
-            
-                    <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
-                    - If Meta's RIS is under 20, this indicates a more-extreme likelihood of market oversell compared to if the RSI were at 40, indicating market activity is in a neutral state
-                    """, unsafe_allow_html=True)
+                # Expander with description tabs inside
+                with st.expander("Leveraging Short Term Models for Short-Term Buy/Sell/Hold Actions*"):
+
+                    tab1, tab2, tab3 = st.tabs(["RSI", "SMA", "MACD"])
+
+                    # RSI Tab
+                    with tab1:
+                        st.markdown("""
+                        <span style="color:lightcoral; font-weight:bold;">**Relative Strength Index (RSI)**</span> is a momentum oscillator that provides a range from 0-100 to indicate if the asset is under or overpriced based on its speed and change of price movements.
+                        
+                        RSI Ranges can be interpreted with the following logic:
+                        - <span style="color:lightcoral; font-weight:bold;">**RSI > 70**</span> = Likely Overbought (Sell Signal): The maximum expected loss for one day.
+                        - <span style="color:lightcoral; font-weight:bold;">**RSI ≈ 50**</span> = Neutral State: The maximum expected loss for one month.
+                        - <span style="color:lightcoral; font-weight:bold;">**RSI < 30**</span> = Likely Oversold (Buy Signal): The maximum expected loss for one year.
+                
+                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                        - If Meta's RSI is under 20, this indicates a more-extreme likelihood of market oversell compared to if the RSI were at 40, indicating market activity is in a neutral state.
+                        """, unsafe_allow_html=True)
+
+                    # SMA Tab
+                    with tab2:
+                        st.markdown("""
+                        <span style="color:lightcoral; font-weight:bold;">**Simple Moving Average (SMA)**</span> is a statistical calculation that smooths the given range of price data to help identify price trends/cycles.
+                        
+                        Can leverage the long-term and short-term SMAs together as follows:
+                        - <span style="color:lightcoral; font-weight:bold;">**200-Day SMA**</span> = Use as long-term trend indicator to benchmark against the 50-day SMA indicator.
+                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA > 200-Day SMA**</span> = ST Bullish Signal: Referred to as a "Golden Cross" - Indicates the price has trended above its LT SMA and has upward momentum.
+                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA < 200-Day SMA**</span> = ST Bearish Signal: Referred to as a "Death Cross" - Indicates the price has trended below its LT SMA and has downward momentum.
+                
+                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                        - If the price is above both the 50-day and 200-day SMAs, but it drops and then finds support at the 50-day SMA, it could signal that the short-term trend remains intact.
+                        """, unsafe_allow_html=True)
+
+                    # MACD Tab
+                    with tab3:
+                        st.markdown("""
+                        <span style="color:lightcoral; font-weight:bold;">**MACD (Moving Average Convergence Divergence)**</span> is a trend analysis indicator used to visualize momentum of a stock and buy/sell signals based on two staggered exponential moving averages (EMAs). The function in this application uses a 26-day EMA for the long and a 12-day EMA for the short trend line. The signal line uses a 9-day EMA which helps provide a clearer indication for buy/sell opportunity in the current short-term market state.
+                        
+                        - <span style="color:lightcoral; font-weight:bold;">**MACD Line (Yellow)**</span> = The difference between the 12-day and 26-day EMA (12-Day EMA - 26-day EMA). A positive MACD value (e.g., +4) means the 12-day EMA is above the 26-day EMA, suggesting that an uptrend (bullish momentum) is currently present in the market. Conversely, if the 12-day is below the 26-day, this would indicate the ticker is in a downtrend (bearish momentum). The Y-axis is the variation in price between the two averages. The higher the number, the stronger the momentum.
+                         
+                        -> Note: You can also use the length of fluctuation as a benchmark to predict that the stock might be nearing a reversal in momentum (e.g. ticker typically caps at 4; if it is currently at a difference of 3, this could mean it may be near a reversal). So in theory, a good entry point would be when the stock is nearing the end of a downtrend and is gearing for reversal.
+                        - <span style="color:lightcoral; font-weight:bold;">**Signal Line (Red)**</span> = The 9-day signal line used as a benchmark against the MACD line. 
+                        - <span style="color:lightcoral; font-weight:bold;">**Histogram (Grey)**</span> = The histogram is used in addition to the MACD line to visually show when the ticker is indicating bullish vs bearish momentum by utilizing the Signal line against it. When the MACD line is above the Signal line, the histogram traces positive or above the 0-axis (bullish), and when the MACD line is below the Signal line, the histogram falls negative or below the 0-axis (bearish).
+                
+                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                        - If the Histogram is positive (MACD line is over the Signal line) and the ticker is peaking near its negative value cap (y-axis), this would indicate that the ticker is likely nearing or at reversal towards bullish momentum and may also be at a discount, thus indicating a short-term buy opportunity in the current market.
+                        """, unsafe_allow_html=True)
 
             # Add Risk Section:
             sh_c.write("Risk Assessment:")
@@ -1448,6 +1481,16 @@ with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
         "return to pay off those debts. Leveraging debt (when managed well) can be a good indicator that a growth "
         "company is leveraging debt in order to re-invest and grow faster, which is typically a good sign that the "
         "company is strategically well managed.")
+
+with st.sidebar.expander("PERFORMANCE/RISK RATIOS"):
+    st.write("---Measures performance in the market against a certain benchmark---")
+    st.write('<span style="color: lightcoral;">Beta:</span>', unsafe_allow_html=True)
+    st.write("Ratio Notes: Beta measures the volatility of an investment relative to the overall market or benchmark "
+             "index. Beta > 1 = more volatile; Beta < 1 = less volatile.")
+    st.write('<span style="color: lightcoral;">Sharpe Ratio: [(Return - RFR) / SD of Returns]</span>', unsafe_allow_html=True)
+    st.write("Ratio Notes: Sharpe Ratio measures the level of adjusted-risk to return of an investment against the "
+             "current risk-free rate. The higher the ratio, the better overall return the asset provides against the "
+             "level of risk taken investing into the asset. A Sharpe Ratio > 1 = good; > 2 = very good.")
 
 # -------- Home Page - Main Screen: Render Home Page
 render_home_page_data(selected_stock)
