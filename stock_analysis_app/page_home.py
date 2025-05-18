@@ -28,7 +28,7 @@ if 'current_ticker' not in st.session_state:
     st.session_state.current_ticker = None
 
 # Cache data loading operations
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)  # 3600 = 1 hour cache
 def get_stock_data(selected_stock: str, st_dt, end_dt):
     return data.load_price_hist_data(selected_stock, st_dt, end_dt)
 

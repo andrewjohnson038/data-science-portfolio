@@ -4,11 +4,16 @@ import boto3
 import io
 from datetime import datetime
 import streamlit as st
+import sys
+import os
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_data import AppData
 from stock_analysis_app.app_stock_grading_model import StockGradeModel
+
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Instantiate necessary helper classes
 dv = DateVars()
