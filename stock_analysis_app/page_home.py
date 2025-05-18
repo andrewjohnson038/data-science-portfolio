@@ -23,20 +23,45 @@ animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
 
+# Initialize session state for tracking ticker changes
+if 'current_ticker' not in st.session_state:
+    st.session_state.current_ticker = None
+
+# Cache data loading operations
+@st.cache_data(ttl=3600)
+def get_stock_data(selected_stock: str, st_dt, end_dt):
+    return data.load_price_hist_data(selected_stock, st_dt, end_dt)
+
+@st.cache_data(ttl=3600)
+def get_stock_metrics(selected_stock: str):
+    return data.load_curr_stock_metrics(selected_stock)
+
+@st.cache_data(ttl=3600)
+def get_analyst_data(selected_stock: str):
+    return data.fetch_yf_analyst_price_targets(selected_stock), data.fetch_yf_analyst_recommendations(selected_stock)
+
+@st.cache_resource
+def get_forecast_data(price_history_df, forecast_years):
+    return data.get_forecasted_data_df(price_history_df, forecast_years)
 
 # Cache and wrap home page render based on ticker selected
 @st.cache_resource
-def render_home_page_data(ticker: str):
+def render_home_page_data(selected_stock: str):
+    # Check if ticker has changed
+    if st.session_state.current_ticker != selected_stock:
+        st.session_state.current_ticker = selected_stock
+        st.cache_data.clear()
+        st.cache_resource.clear()
 
     # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
     st_dt = dv.start_date
     end_dt = dv.today
 
     # Load the stock data based on the ticker selected in front end
-    selected_stock_price_history_df = data.load_price_hist_data(selected_stock, st_dt, end_dt)
+    selected_stock_price_history_df = get_stock_data(selected_stock, st_dt, end_dt)
 
     # Fetch stock data for the selected stock
-    selected_stock_metrics_df = data.load_curr_stock_metrics(selected_stock)
+    selected_stock_metrics_df = get_stock_metrics(selected_stock)
 
     # ------- Create Selected Stock Metrics as Vars to reference in app
     # Add all data elements from the stock metrics df as their own string vars:
@@ -101,13 +126,10 @@ def render_home_page_data(ticker: str):
     selected_stock_sharpe_ratio = data.calculate_sharpe_ratio(selected_stock_price_history_df)
 
     # Fetch Analyst Price Target Data for the selected ticker from yf
-    selected_stock_analyst_targets_df = data.fetch_yf_analyst_price_targets(selected_stock)
-
-    # Fetch Analyst Buy/Sell Recommendation Data for the selected ticker from yf
-    selected_stock_analyst_recommendations_df = data.fetch_yf_analyst_recommendations(selected_stock)
+    selected_stock_analyst_targets_df, selected_stock_analyst_recommendations_df = get_analyst_data(selected_stock)
 
     # For Benchmarking Purposes, create a separate DF for SPY
-    SPY_data = data.load_price_hist_data("SPY", st_dt, end_dt)  # loads the selected ticker data (selected_stock)
+    SPY_data = get_stock_data("SPY", st_dt, end_dt)  # loads the selected ticker data (selected_stock)
 
     # -------------------------------- Data: Add a yearly data dataframe to capture price by year on today's date over last 10 years ---------------------------------------
 
@@ -240,7 +262,7 @@ def render_home_page_data(ticker: str):
     selected_stock_forecasted_year_range = forecasted_year_range_slider  # will use the app slider to work dynamically
 
     # Call forecasted data df method to bring in forecasted data
-    selected_stock_trained_model, selected_stock_forecasted_df = data.get_forecasted_data_df(
+    selected_stock_trained_model, selected_stock_forecasted_df = get_forecast_data(
         selected_stock_price_history_df, selected_stock_forecasted_year_range)
 
     # ------------------------------------------------------ Data: Custom Stock Grade Model --------------------------------------------------------------------

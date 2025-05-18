@@ -173,8 +173,13 @@ with sh_g.container():
 
         st.write("Ticker Model Grades / Scores:")
         with st.container(border=True):
-            # Display dataframe of ticker grade data
-            st.dataframe(filtered_df.style.applymap(color_grades, subset=['Grade']), use_container_width=True)
+            # Style and format the df for visual
+            ticker_grades_df = filtered_df.style \
+                .format({'Score': '{:.2f}'}) \
+                .applymap(color_grades, subset=['Grade'])
+
+            # Display the styled dataframe
+            st.dataframe(ticker_grades_df, use_container_width=True)
 
         st.write("Grade Distributions:")
         with st.container(border=True):
