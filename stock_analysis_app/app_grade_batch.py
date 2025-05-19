@@ -79,9 +79,9 @@ class GradeBatchMethods:
                     rsi_score = data.get_latest_rsi(price_hist_df)
 
                     # Forecasts and simulations
-                    _, forecasted_df = data.get_forecasted_data_df(price_hist_df, forecast_days=5)
+                    _, forecasted_df = data.get_forecasted_data_df(price_hist_df, 1)  # 1 year of data, gets latest price in forecast range
                     ind_avg_df = data.get_industry_averages_df()
-                    mc_sim_df = data.get_monte_carlo_df(price_hist_df, num_simulations=1000, num_days=252)
+                    mc_sim_df = data.get_monte_carlo_df(price_hist_df, 1000, 252)
 
                     # Calculate grade and score
                     score, grade, _, _, _ = StockGradeModel.calculate_grades(
@@ -91,8 +91,12 @@ class GradeBatchMethods:
 
                     # Get industry if available
                     industry = "Unknown"
-                    if 'Industry' in stock_metrics_df.columns:
-                        industry = stock_metrics_df['Industry'].iloc[0] or "Unknown"
+                    try:
+                        if 'Industry' in stock_metrics_df.columns:
+                            industry_data = stock_metrics_df['Industry'].iloc[0]
+                        industry = industry_data if industry_data else "Unknown"
+                    except:
+                        pass
 
                     # Append result
                     results.append({
@@ -133,7 +137,7 @@ class GradeBatchMethods:
             Body=csv_buffer.getvalue()
         )
 
-        print(f"✅ Output uploaded to s3://{GradeBatchMethods.bucket_name}/{GradeBatchMethods.output_key}")
+        print(f" Output uploaded to s3://{GradeBatchMethods.bucket_name}/{GradeBatchMethods.output_key}")
 
     # Create a Batch Process Method to load tickers from a list for test
     @staticmethod
@@ -179,7 +183,7 @@ class GradeBatchMethods:
                     test_sma_percentage_difference = (test_sma_price_difference / sma_200) * 100
 
                     # Set Up Test Variables
-                    test_trained_model, test_forecasted_df = data.get_forecasted_data_df(test_price_hist_df, 5)  # 5 year forecast range
+                    test_trained_model, test_forecasted_df = data.get_forecasted_data_df(test_price_hist_df, 1)  # 1 year forecast range
                     test_ind_avg_df = data.get_industry_averages_df()
                     test_mc_sim_df = data.get_monte_carlo_df(test_price_hist_df, 1000, 252)
                     test_sharpe_ratio = data.calculate_sharpe_ratio(test_price_hist_df)
@@ -277,11 +281,50 @@ if __name__ == "__main__":
     print("🔌 Testing AWS connection...")
     test_aws_connection()
 
-    # Run test batch using test from list method to just test if batch is working
-    test_ticker_list = ["AAPL", "MSFT", "AMZN"]
-    print("🧪 Running test batch...")
-    test_results_df = GradeBatchMethods.batch_process_from_list_test(
-        test_ticker_list, batch_size=6, rate_limit_delay=0
-    )
+    # Run test batch using test from list method if wanting to test by list
+    # test_ticker_list = ["AAPL", "MSFT", "AMZN"]
+    # print("🧪 Running test batch...")
+    # test_results_df = GradeBatchMethods.batch_process_from_list_test(
+    #     test_ticker_list, batch_size=6, rate_limit_delay=0
+    # )
+    #
+    # print(test_results_df)
 
-    print(test_results_df)
+    # Function to test batch to AWS limiting to default 5 row test batch
+    def run_batch_test_limited_rows(row_limit=5):
+        """
+        Test wrapper to run run_batch() on only the first `row_limit` tickers
+        by monkey-patching the S3 input with a limited CSV.
+        """
+        # Step 1: Load the real ticker list from S3
+        original_get_object = GradeBatchMethods.s3.get_object  # Save original method
+        ticker_csv_obj = original_get_object(
+            Bucket=GradeBatchMethods.bucket_name,
+            Key=GradeBatchMethods.input_key
+        )
+        tickers_df = pd.read_csv(ticker_csv_obj['Body'])
+
+        # Step 2: Slice to the first `row_limit` rows
+        limited_df = tickers_df.head(row_limit)
+
+        # Step 3: Convert to in-memory CSV buffer
+        csv_buffer = io.StringIO()
+        limited_df.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)  # Reset pointer to start
+
+        # Step 4: Monkey-patch the get_object method to return a limited CSV
+        def mock_get_object(Bucket, Key):
+            return {'Body': io.StringIO(csv_buffer.getvalue())}
+
+        GradeBatchMethods.s3.get_object = mock_get_object  # Patch
+
+        # Step 5: Call the original function (which now uses the mock input)
+        try:
+            GradeBatchMethods.run_batch()
+        finally:
+            # Step 6: Restore original method so other code is unaffected
+            GradeBatchMethods.s3.get_object = original_get_object
+
+
+    # Run the test batch
+    # run_batch_test_limited_rows(5)
