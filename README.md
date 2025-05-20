@@ -1,8 +1,8 @@
 # Data Science Portfolio
 
-Welcome :) This repo is where I maintain a mix of personal projects that highlight experience with data analysis, data engineering, data wrangling, etc for app and BI-driven projects. 
+This repo contains a mix of personal projects that highlight experience with data analysis, data engineering, data wrangling, machine learning, ai optimization & app integration, etc. for app and BI-driven projects. 
 
-Each sub-directory folder is its own project, complete with its own code and documetnation. ReadMe files with more context can be referenced in each sub-directory for the project.
+Each sub-directory folder from the root is its own project, complete with its own code and documetnation. ReadMe files with more context can be referenced in each sub-directory for the project.
 
 ---
 
@@ -12,9 +12,10 @@ Each sub-directory folder is its own project, complete with its own code and doc
 
 Built with the **Streamlit** framework using **Python**, **CSS**, and **HTML**, this app features a custom **S-F grading model**, multiple **forecasting** and **trend analysis tools**, **web scraping**, and an integrated **generative AI chatbot**. Key libraries include **Pandas**, **NumPy**, **Plotly**, **BeautifulSoup**, and **MATLAB**.
 
-The model data is retrieved through a scheduled batch process that loops through and does a lookup against a ticker list repo and iterates through spaced batch loops to adhere to **Yahoo Finance API** rate limits.
+Data for the stock grades page is batched on a weekly schedule in **AWS**, using an **S3**, **EC2**, and **EventBridge Scheduler** stack.
 
-**Note: The Batch load Process and page structure is currently being updated to seperate functions. The current batch load will not work within the UI**
+The model data is retrieved through a scheduled batch process that loops through and does a lookup against a ticker list and iterates through spaced batch loops to adhere to **Yahoo Finance API** rate limits.
+
 
 ---
 
@@ -24,7 +25,7 @@ The model data is retrieved through a scheduled batch process that loops through
   Uses **exponential smoothing** to identify historical trends.
 
 - **Time-Series Forecasting**  
-  Implements both **SARIMA** and **META Prophet** models for future price prediction.
+  Implements **META Prophet** model for future price prediction.
 
 - **MACD (Moving Average Convergence Divergence)**  
   A trend-following momentum indicator used to determine the strength and direction of a trend.
