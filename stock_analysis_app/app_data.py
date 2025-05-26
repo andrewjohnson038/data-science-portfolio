@@ -362,7 +362,7 @@ class AppData:
         rfr_data = yf.Ticker(risk_free_rate_ticker)
 
         # Get the latest closing price (which represents the yield)
-        rfr_latest_yield = rfr_data.history(period="1d")['Close'].iloc[-1]
+        rfr_latest_yield = rfr_data.history(period="7d")['Close'].iloc[-1]  # get latest available price in last 7 days
 
         # Convert the percentage to a decimal by dividing by 100, and round to 4 decimal places
         rfr_latest_yield = round(rfr_latest_yield / 100, 4)
