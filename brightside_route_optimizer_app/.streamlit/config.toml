@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#4dabf7"      # Bright blue for interactive elements (lighter than before for better contrast)
+backgroundColor = "#2a2d3e"    # Dark grey-blue background color
+secondaryBackgroundColor = "#1e2132"  # Slightly darker grey-blue for containers
+textColor = "#ffffff"         # White text for better contrast
+font = "sans serif"           # Font family for all text
+
+[server]
+enableCORS = false            # Prevents other websites from making requests to this app
+enableXsrfProtection = true   # Adds security tokens to forms to prevent unauthorized access 
