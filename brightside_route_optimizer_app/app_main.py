@@ -2,13 +2,6 @@ import streamlit as st
 import sys
 import os
 
-# Import the page functions from other files
-# Ensure the function names match what's defined in the page files
-# In app_home_pg.py, the function is named `app_home_page`
-# In app_add_members_pg.py, the function is named `app_add_members_page`
-from app_home_pg import app_home_page
-from app_add_members_pg import app_add_members_page
-
 # Must be the first Streamlit command
 st.set_page_config(
     page_title="Brightside Route Optimizer",
@@ -21,6 +14,13 @@ st.set_page_config(
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the page functions from other files
+# Ensure the function names match what's defined in the page files
+# In app_home_pg.py, the function is named `app_home_page`
+# In app_add_members_pg.py, the function is named `app_add_members_page`
+from app_home_pg import app_home_page
+from app_add_members_pg import app_add_members_page
 
 # Initialize session state for navigation
 if 'current_page' not in st.session_state:
