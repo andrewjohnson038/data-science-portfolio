@@ -900,23 +900,24 @@ def app_home_page():
         if 'selected_emails' not in st.session_state:
             st.session_state.selected_emails = []
 
+        # Use a unique key for this specific instance of the multiselect
         selected_names = st.multiselect(
             "Select Team Members:",
             options=list(EMAILS.keys()),
             default=[name for name, email in EMAILS.items() if email in st.session_state.selected_emails],
             placeholder="Select Brightsiders driving a route today",
-            key="team_member_selector"
+            key=f"team_member_selector_step1_{st.session_state.step}"
         )
 
         # Update session state only when Continue is clicked
-        if st.button("Continue", use_container_width=True, key="step1_continue"):
+        if st.button("Continue", use_container_width=True, key=f"step1_continue_{st.session_state.step}"):
             if selected_names:
                 st.session_state.selected_emails = [EMAILS[name] for name in selected_names]
                 go_to_step(2)
 
         # Add mobile installation instructions only on step 1
         st.markdown("---")
-        with st.expander("📱 Add to Home Screen Instructions"):
+        with st.expander("📱 Add to Home Screen Instructions", key=f"mobile_instructions_{st.session_state.step}"):
             st.markdown("""
             ### iOS Instructions
             1. Open this page in Safari
