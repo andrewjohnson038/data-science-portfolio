@@ -917,7 +917,7 @@ def app_home_page():
 
         # Add mobile installation instructions only on step 1
         st.markdown("---")
-        with st.expander("📱 Add to Home Screen Instructions", key=f"mobile_instructions_{st.session_state.step}"):
+        with st.expander("📱 Add to Home Screen Instructions"):
             st.markdown("""
             ### iOS Instructions
             1. Open this page in Safari
