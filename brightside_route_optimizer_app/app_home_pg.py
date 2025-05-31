@@ -1247,8 +1247,7 @@ def app_home_page():
 
             # Create personalized email template
             first_name = assignee_name.split()[0]  # Get first name
-            # Create iOS-specific link
-            ios_link = directions_link.replace("https://www.google.com/maps/dir/", "maps://maps.apple.com/?dirflg=d&")
+
             email_template = f"""Hi {first_name},
 
             **You have been assigned the following route(s):**
@@ -1264,8 +1263,7 @@ def app_home_page():
             **Instructions to use these addresses in Google Maps:**
 
             Option 1: Click one of the links below to open your route (addresses are in optimized order):
-            • Web Browser: {directions_link}
-            • iOS Device: {ios_link}
+            • Google Maps: {directions_link}
 
             Option 2: Copy and paste addresses into Google Maps:
             1. Go to https://www.google.com/maps/
