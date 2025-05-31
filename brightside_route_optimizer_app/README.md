@@ -1,5 +1,21 @@
 # Brightside Route Optimizer
 
+## Project Structure
+```
+brightside_route_optimizer_app/
+├── .streamlit/                  # Streamlit configuration
+│   ├── config.toml             # Streamlit theme and server settings
+│   └── secrets.toml            # API keys and credentials (not in version control)
+├── resources/                  # Static resources
+│   ├── pdfs/                   # Pdf reference for using in app
+├── app_add_members_pg.py       # Team member management page
+├── app_home_pg.py              # Main application page
+├── app_main.py                 # Application entry point
+├── create_team_members_csv.py  # Team member CSV creation script
+├── requirements.txt            # Python dependencies
+└── README.md                   # Project documentation
+```
+
 A Streamlit application that optimizes delivery routes for Brightside's Fresh Produce PWYC (Pay What You Can) service in the Minnesota metro area, using a combination of machine learning clustering and real-time traffic data to create balanced, efficient routes based on number of team members volunterring to drive delivery routes that day.
 
 ## Overview
@@ -147,11 +163,7 @@ The application uses a two-phase approach to optimize routes:
    The app uses a custom theme defined in `.streamlit/config.toml`:
    ```toml
    [theme]
-   primaryColor = "#0066cc"      # Main accent color for buttons and interactive elements
-   backgroundColor = "#ffffff"    # Main background color of the app
-   secondaryBackgroundColor = "#f0f2f6"  # Background color for sidebar and containers
-   textColor = "#262730"         # Color of text throughout the app
-   font = "sans serif"           # Font family for all text
+   Custom config here. Ref Streamlit documentation.
 
    [server]
    enableCORS = false            # Prevents other websites from making requests to this app
