@@ -1064,30 +1064,38 @@ def app_home_page():
 
             # Show the route assignment interface first
             st.subheader("Route Assignments")
+            START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
+            
             for group_idx, route_group in enumerate(st.session_state.route_groups):
                 try:
                     st.subheader(f"Route Group {group_idx+1}")
 
-                    # Find the route statistics for this group
-                    route_stats_entry = next((stat for stat in st.session_state.get('route_stats', []) if stat['route_number'] == group_idx + 1), None)
-
-                    # Display route statistics right below the group header
-                    if route_stats_entry and group_idx in st.session_state.cached_traffic_info:
-                        info = st.session_state.cached_traffic_info[group_idx]
-                        st.write(f"• Base Time: {info.get('total_duration', 'N/A')} | Expected Traffic Time: {info.get('total_duration_in_traffic', 'N/A')} | Total Distance: {info.get('total_distance', 'N/A')} | Addresses: {len(route_group)}")
-                        st.markdown("") # Add a small space
-
-                    # Display a sample of addresses
+                    # Calculate final route statistics for this group
                     if route_group:
-                        with st.expander("View addresses"):
-                            try:
-                                ordered_addresses, _ = get_google_directions_route(route_group, GGL_DIRECTIONS_KEY)
-                            except Exception as e:
-                                logger.warning(f"Error getting ordered addresses for group {group_idx}: {str(e)}")
-                                ordered_addresses = route_group # Fallback
+                        try:
+                            # Add starting point to the route for calculations
+                            route_with_start = [START_ADDRESS] + route_group
+                            
+                            # Get final optimized route order and metrics including start point
+                            ordered_addresses, total_time = get_google_directions_route(route_with_start, GGL_DIRECTIONS_KEY)
+                            
+                            # Get traffic info for the final route
+                            route_key = tuple(route_with_start)
+                            if route_key in st.session_state.traffic_info_cache:
+                                info = st.session_state.traffic_info_cache[route_key]
+                                st.write(f"• Base Time: {info.get('total_duration', 'N/A')} | Expected Traffic Time: {info.get('total_duration_in_traffic', 'N/A')} | Total Distance: {info.get('total_distance', 'N/A')} | Addresses: {len(route_group)}")
+                            st.markdown("") # Add a small space
 
-                            for i, addr in enumerate(ordered_addresses):
-                                st.write(f"{i+1}. {addr}")
+                            # Display addresses in optimized order (excluding start point in display)
+                            with st.expander("View addresses"):
+                                # Skip the first address (start point) in display
+                                for i, addr in enumerate(ordered_addresses[1:], 1):
+                                    st.write(f"{i}. {addr}")
+
+                        except Exception as e:
+                            logger.warning(f"Error calculating final route metrics for group {group_idx}: {str(e)}")
+                            st.warning("Could not calculate final route metrics. Showing basic information only.")
+                            st.write(f"• Number of Addresses: {len(route_group)}")
 
                     # Create a selectbox for assigning a team member
                     current_assignee = None
@@ -1122,7 +1130,10 @@ def app_home_page():
                                 st.session_state.cached_coordinates = {}
 
                             if group_idx not in st.session_state.cached_coordinates:
-                                coords_for_map = [get_coordinates_cached(addr) for addr in route_group]
+                                # Include start point coordinates for map
+                                start_coords = get_coordinates_cached(START_ADDRESS)
+                                coords_for_map = [start_coords] if start_coords else []
+                                coords_for_map.extend([get_coordinates_cached(addr) for addr in route_group])
                                 valid_coords_for_map = [coord for coord in coords_for_map if coord is not None]
                                 if valid_coords_for_map:
                                     st.session_state.cached_coordinates[group_idx] = valid_coords_for_map
@@ -1142,33 +1153,6 @@ def app_home_page():
                 except Exception as e:
                     logger.error(f"Error processing route group {group_idx}: {str(e)}")
                     st.error(f"Error displaying route group {group_idx + 1}. Please try refreshing the page.")
-                    continue
-
-            # Show route statistics for all selected team members at the bottom
-            st.markdown("---")
-            st.subheader("Route Statistics by Team Member")
-
-            # Display statistics for each team member
-            for email in st.session_state.selected_emails:
-                try:
-                    assignee_name = next((name for name, e in EMAILS.items() if e == email), "Unknown")
-                    st.write(f"**{assignee_name}'s Route Summary:**")
-
-                    # Get the assigned route group for this team member
-                    assigned_group_idx = email_to_group.get(email)
-
-                    if assigned_group_idx is not None and assigned_group_idx in st.session_state.cached_traffic_info:
-                        info = st.session_state.cached_traffic_info[assigned_group_idx]
-                        st.write(f"• Base Route Time: {info.get('total_duration', 'N/A')}")
-                        st.write(f"• Expected Traffic Time: {info.get('total_duration_in_traffic', 'N/A')}")
-                        st.write(f"• Total Distance: {info.get('total_distance', 'N/A')}")
-                        st.write(f"• Number of Addresses: {len(st.session_state.route_groups[assigned_group_idx])}")
-                    else:
-                        st.write("• No route assigned yet")
-
-                    st.markdown("---")
-                except Exception as e:
-                    logger.error(f"Error displaying statistics for {email}: {str(e)}")
                     continue
 
             # Check for duplicate assignments
@@ -1219,24 +1203,38 @@ def app_home_page():
             if assigned_group_idx is not None and hasattr(st.session_state, 'cached_traffic_info'):
                 if assigned_group_idx in st.session_state.cached_traffic_info:
                     info = st.session_state.cached_traffic_info[assigned_group_idx]
-                    st.write("**Route Summary:**")
-                    st.write(f"• Base Route Time: {info['total_duration']}")
-                    st.write(f"• Expected Traffic Time: {info['total_duration_in_traffic']}")
-                    st.write(f"• Total Distance: {info['total_distance']}")
-                    st.write(f"• Number of Addresses: {len(addresses)}")
-                    st.markdown("---")
+                else:
+                    # Default values if no cached info
+                    info = {
+                        'total_duration': 'N/A',
+                        'total_duration_in_traffic': 'N/A',
+                        'total_distance': 'N/A'
+                    }
+            else:
+                # Default values if no group index or no cached info
+                info = {
+                    'total_duration': 'N/A',
+                    'total_duration_in_traffic': 'N/A',
+                    'total_distance': 'N/A'
+                }
+
+            st.write("**Route Summary:**")
+            st.write(f"• Base Route Time: {info['total_duration']}")
+            st.write(f"• Expected Traffic Time: {info['total_duration_in_traffic']}")
+            st.write(f"• Total Distance: {info['total_distance']}")
+            st.write(f"• Number of Addresses: {len(addresses)}")
+            st.markdown("---")
 
             # Generate directions link for this route using optimized order
             directions_link = generate_directions_link(addresses)
 
             # Create address list in optimized order
-            # Check if optimized_addresses is available from get_google_directions_route
             try:
-                # Call API again to get ordered addresses for display/email
-                # This might be redundant if the order was already calculated in step 3
-                # A better approach would be to store the ordered addresses in session state
-                # For now, calling the function again.
-                ordered_addresses, _ = get_google_directions_route(addresses, GGL_DIRECTIONS_KEY)
+                # Add starting point for route optimization
+                route_with_start = [START_ADDRESS] + addresses
+                ordered_addresses, _ = get_google_directions_route(route_with_start, GGL_DIRECTIONS_KEY)
+                # Remove start point from display
+                ordered_addresses = ordered_addresses[1:]
             except Exception:
                 # Fallback to original order if API call fails
                 ordered_addresses = addresses
