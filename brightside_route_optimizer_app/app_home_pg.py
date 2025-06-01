@@ -366,16 +366,24 @@ def optimize_routes(addresses, num_groups):
     # Step 2: Apply K-means clustering for initial grouping
     status_text.info("Creating initial route groups...")
 
-    # Convert coordinates to numpy array for K-means
-    X = np.array(coordinates)
+    # Coordinates for starting location
+    start_coord = get_coordinates_cached("693 Raymond Ave, St Paul, MN 55114")
 
-    # Optimize K-means parameters for speed
+    # Create feature set: lat, lon, and distance from start
+    features = []
+    for coord in coordinates:
+        dist = geodesic(start_coord, coord).miles
+        features.append([coord[0], coord[1], dist])  # lat, lon, distance from start
+
+    X = np.array(features)
+
+    # Run KMeans on the enriched feature set
     kmeans = KMeans(
         n_clusters=num_groups,
         random_state=42,
-        n_init=5,  # Reduced from 10 to 5 for speed
-        max_iter=100,  # Limit iterations
-        algorithm='elkan'  # Faster algorithm for dense data
+        n_init=5,
+        max_iter=100,
+        algorithm='elkan'
     )
     labels = kmeans.fit_predict(X)
 
@@ -652,7 +660,6 @@ def get_google_directions_route(addresses, api_key):
         "alternatives": "false",  # Don't need alternative routes
         "departure_time": current_time,  # Use current time for traffic-aware routing
         "traffic_model": "best_guess",  # Use best guess for traffic prediction
-        "transit_mode": "bus",  # Include bus routes in consideration
         "avoid": "ferries|indoor",  # Avoid ferries and indoor navigation
         "language": "en",
         "units": "imperial"  # Use miles and minutes
@@ -906,7 +913,7 @@ def app_home_page():
             options=list(EMAILS.keys()),
             default=[name for name, email in EMAILS.items() if email in st.session_state.selected_emails],
             placeholder="Select Brightsiders driving a route today",
-            key=f"team_member_selector_step1_{st.session_state.step}"
+            key="team_member_selector_step1"
         )
 
         # Update session state only when Continue is clicked
@@ -1228,6 +1235,8 @@ def app_home_page():
 
             # Generate directions link for this route using optimized order
             directions_link = generate_directions_link(addresses)
+
+            START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
 
             # Create address list in optimized order
             try:
