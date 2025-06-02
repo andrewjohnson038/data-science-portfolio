@@ -4,6 +4,11 @@ import boto3
 import io
 from datetime import datetime
 import streamlit as st
+import sys
+import os
+
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
@@ -238,12 +243,15 @@ class GradeBatchMethods:
         # Convert results to DataFrame
         ticker_grades_batch_df = pd.DataFrame(results)
 
+        print(f":) Finished batch {i//batch_size + 1}: {len(batch)} tickers processed")
+
         # Return Batch in dataframe
         return ticker_grades_batch_df
 
 
 # Run batch script (hash out if testing)
 GradeBatchMethods.run_batch()
+
 
 # ---- TEST BLOCK ----
 if __name__ == "__main__":
