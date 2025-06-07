@@ -94,15 +94,13 @@ The application uses a two-phase approach to optimize routes:
    - 3 worker threads for route optimization
 
 2. **Caching**
-   - LRU cache for geocoding results
-   - Prevents repeated API calls for same address
-   - Cache size: 1000 addresses
+   - Uses streamlit cacheing for geographic coordinates (30-minute cache)
+     - Prevents repeated API calls for same address
 
 3. **API Optimization**
    - Retry logic for API calls (3 attempts)
    - 10-second timeout
    - Traffic-aware routing parameters
-   - Batch processing where possible
 
 ### Known Limitations and Trade-offs
 
