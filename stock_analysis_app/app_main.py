@@ -4,7 +4,7 @@ import sys
 import os
 
 # Add the parent directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set Layout of App, Provide App Version and Provide Title
 st.set_page_config(layout='wide')  # sets layout to wide
