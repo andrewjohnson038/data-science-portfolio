@@ -488,7 +488,7 @@ def render_home_page_data(selected_stock: str):
 
     # Create a tab list to navigate to different sections on our home page:
     home_tab1, home_tab2, home_tab3 = st.tabs(
-        ["Historical/Current Data", "Forecasted Data", "Analyst Grades"])
+        ["Historical/Current Data", "Forecasted Data", "Model/Analyst Grades"])
 
     with home_tab1:
         # create variable for a container to put our stock detail section in:
@@ -1389,10 +1389,24 @@ def render_home_page_data(selected_stock: str):
         sh_g = st.container()
 
         # Ticker Analyst #s Section
+        sh_g.write("Model Grade Summary:")
+
+        # Write Analyst Grades to App
+        with sh_g.container(border=True):
+
+            # Display the DataFrame in Streamlit
+            st.write("Score Breakdown:")
+
+            selected_stock_score_details_df = pd.DataFrame.from_dict(selected_stock_score_details, orient='index')
+
+            st.dataframe(selected_stock_score_details_df)
+
+        # Ticker Analyst #s Section
         sh_g.write("Yahoo Finance Analyst Summary:")
 
         # Write Analyst Grades to App
         with sh_g.container(border=True):
+
             # ----------------- Yahoo Finance Grades
             # Display the DataFrame in Streamlit
             st.write("Year End Price Predictions:")
@@ -1406,7 +1420,6 @@ def render_home_page_data(selected_stock: str):
             # write df to app if not empty
             else:
                 st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
-            # ----------------- Yahoo Finance Grades
 
             # ----------------- Agency Grades
             # Display the DataFrame in Streamlit
