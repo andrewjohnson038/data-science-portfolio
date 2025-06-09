@@ -32,7 +32,7 @@ pg.run()
 
 
 # Note: in order to view the app on your local host, you will need run the following code on your terminal: streamlit
-# run [insert location of file here {ex: %/stockpredictorapp.py}] Note: this is the streamlit red color code: #FF6347
+# Note: this is the streamlit red color code: #FF6347
 
 # Note: to load in historical data over a set time period for a ticker, you can call the load_price_hist_data
 # static method data.load_price_hist_data(ticker, st_dt, end_dt) - st & end dt are optional else 10 yr period
