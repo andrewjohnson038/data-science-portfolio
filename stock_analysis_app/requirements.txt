@@ -9,4 +9,4 @@ prophet
 requests
 statsmodels
 streamlit
-yfinance
+yfinance==0.2.59
