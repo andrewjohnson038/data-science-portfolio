@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import requests
 
 # Must be the first Streamlit command
 st.set_page_config(
@@ -40,6 +41,19 @@ with st.sidebar:
     if st.button("Team Member Directory", use_container_width=True):
         st.session_state.current_page = 'add_members'
         st.rerun()
+
+    st.write("---")
+
+    with st.expander("If Testing, Can Use Below PDF on Step 2"):
+        # Replace with your actual GitHub raw URL
+        pdf_url = "https://raw.githubusercontent.com/andrewjohnson038/data-science-portfolio/stock_analysis_app_testing/brightside_route_optimizer_app/resources/routes%20January%2026%202025.pdf"
+
+        st.download_button(
+            label="Download Routes PDF",
+            data=requests.get(pdf_url).content,
+            file_name="brightside_fake_test_routes.pdf",
+            mime="application/pdf"
+        )
 
 # Navigation
 if st.session_state.current_page == 'home':

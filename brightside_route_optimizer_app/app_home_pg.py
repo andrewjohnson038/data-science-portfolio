@@ -123,6 +123,7 @@ s3 = boto3.client(
 TEAM_MEMBERS_BUCKET = "brightside-route-optimizer"
 TEAM_MEMBERS_FILE = "brightside_team_members_dummy_file.csv" # Using dummy file
 
+
 def load_team_members():
     """Load team members from S3 CSV file."""
     try:
@@ -156,6 +157,7 @@ GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD")
 GGL_DIRECTIONS_KEY = st.secrets.get("GGL_DIRECTIONS_KEY")
 BRIGHTSIDE_CONFIRMATION_KEY = st.secrets.get("BRIGHTSIDE_CONFIRMATION_KEY")
 
+
 # Helper functions
 def extract_addresses_from_pdf(pdf_file):
     """Extract address-like text from a PDF, approximating the Address column"""
@@ -166,36 +168,65 @@ def extract_addresses_from_pdf(pdf_file):
         temp_path = temp_file.name
 
     try:
+        # Open PDF file in binary read mode
         with open(temp_path, 'rb') as file:
+            # Create PDF reader object
             pdf_reader = PyPDF2.PdfReader(file)
 
+            # Loop through each page in the PDF
             for page in pdf_reader.pages:
+                # Extract all text from current page
                 text = page.extract_text()
+
+                # Split text into individual lines
                 lines = text.split('\n')
 
+                # Process each line of text
                 for line in lines:
+                    # Remove leading/trailing whitespace
                     line = line.strip()
 
+                    # Skip empty lines or lines with unwanted keywords
                     if not line or "Address" in line or "Delivery" in line:
                         continue
 
-                    # Match address-like sequences ending before instructions, phone, etc.
-                    match = re.search(
-                        r'(\d{3,5}[\w\s#/.,-]+?(Ave|St|Blvd|Rd|Dr|Ct|Ln|Way|Place|Pl|Trail|Parkway|Pkwy|Cir|Terrace|NE|NW|SE|SW)[\w\s#/.,-]*?)'
-                        r'(?=\s*(text|leave|place|they\'ll|[A-Z][a-z]+|\(?\d{3}|\$|$))',
-                        line
+                    # Define regex pattern to match complete addresses
+                    # Pattern looks for: [Building Name - ] Street Number Street Name, City, State ZIP
+                    pattern = (
+                        r'(?:([A-Za-z\s]+(?:Towers?|Building|Center|Plaza)) - )?'  # Optional building name with dash
+                        r'(\d{3,5})\s+'                                           # Street number (3-5 digits) + space  
+                        r'([\w\s#/.,-]+?(?:Ave|St|Blvd|Rd|Dr|Ct|Ln|Way|Place|Pl|Trail|Parkway|Pkwy|Cir|Terrace)[\w\s]*?)'  # Street name + type
+                        r',\s*([A-Za-z\s]+)'                                      # Comma + city name
+                        r',\s*([A-Z]{2})'                                         # Comma + state (2 letters)
+                        r'\s+(\d{5}(?:-\d{4})?)'                                  # Space + ZIP code (5 or 9 digits)
                     )
 
+                    # Search for the address pattern in current line (case insensitive)
+                    match = re.search(pattern, line, re.IGNORECASE)
+
+                    # If pattern is found, extract the address components
                     if match:
-                        address = match.group(1).strip().rstrip(',')
+                        building = match.group(1)    # Building name (could be None) - we'll ignore this
+                        number = match.group(2)      # Street number
+                        street = match.group(3)      # Street name and type
+                        city = match.group(4)        # City name
+                        state = match.group(5)       # State abbreviation
+                        zip_code = match.group(6)    # ZIP code
 
-                        # Remove trailing characters stuck to the address without space (e.g., "#1text." → "#1")
-                        address = re.sub(r'(\w)([A-Z][a-z]+|\d{3}-\d{3}-\d{4}|\$[0-9]+)', r'\1', address)
+                        # Build Google Maps compatible address (always exclude building name)
+                        # Format: "Street Number Street Name, City, State ZIP"
+                        google_maps_address = f"{number} {street.strip()}, {city.strip()}, {state} {zip_code}"
 
-                        # Strip anything non-address-like accidentally attached
-                        address = re.sub(r'(?<=\d)(text|leave|place|theyll).*$', '', address, flags=re.IGNORECASE).strip()
+                        # Clean up any double spaces
+                        google_maps_address = re.sub(r'\s+', ' ', google_maps_address)
 
-                        addresses.add(address)
+                        # Add address to set (automatically removes duplicates)
+                        addresses.add(google_maps_address)
+
+        # Print results
+        print(f"Found {len(addresses)} unique addresses:")
+        for address in sorted(addresses):
+            print(address)
 
     except Exception as e:
         logger.error(f"Error processing PDF: {str(e)}")
@@ -204,7 +235,6 @@ def extract_addresses_from_pdf(pdf_file):
         os.unlink(temp_path)
 
     return sorted(addresses)
-
 
 
 def get_coordinates(address):
@@ -721,8 +751,8 @@ def get_google_directions_route(addresses, api_key):
 
     raise Exception("Failed to get directions after multiple attempts")
 
-# Modify order_route_by_distance to optionally use Google Directions API
 
+# Modify order_route_by_distance to optionally use Google Directions API
 def order_route_by_distance(coords, addresses, api_key=None):
     """
     Order addresses in a group to minimize travel from a fixed start point (MidCity Kitchen).
@@ -873,10 +903,9 @@ def go_to_step(step):
     # For now, assume st.rerun() works as intended within the page context.
     st.rerun()
 
+
 # Main app UI (now within the page)
 def app_home_page():
-
-
 
     # Initialize session state variables
     initialize_session_state()
@@ -1200,26 +1229,15 @@ def app_home_page():
             st.subheader(f"Team Member: {assignee_name}")
             st.write(f"Email: {email}")
 
-            # Find the route group index for this assignment
-            assigned_group_idx = None
-            for idx, group in enumerate(st.session_state.route_groups):
-                if set(addresses) == set(group):
-                    assigned_group_idx = idx
-                    break
+            # Display route statistics using same cache structure as Step 4
+            START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
+            route_with_start = [START_ADDRESS] + addresses
+            route_key = tuple(route_with_start)
 
-            # Display route statistics if available
-            if assigned_group_idx is not None and hasattr(st.session_state, 'cached_traffic_info'):
-                if assigned_group_idx in st.session_state.cached_traffic_info:
-                    info = st.session_state.cached_traffic_info[assigned_group_idx]
-                else:
-                    # Default values if no cached info
-                    info = {
-                        'total_duration': 'N/A',
-                        'total_duration_in_traffic': 'N/A',
-                        'total_distance': 'N/A'
-                    }
+            # Use the same cache as Step 4
+            if route_key in st.session_state.traffic_info_cache:
+                info = st.session_state.traffic_info_cache[route_key]
             else:
-                # Default values if no group index or no cached info
                 info = {
                     'total_duration': 'N/A',
                     'total_duration_in_traffic': 'N/A',
@@ -1235,8 +1253,6 @@ def app_home_page():
 
             # Generate directions link for this route using optimized order
             directions_link = generate_directions_link(addresses)
-
-            START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
 
             # Create address list in optimized order
             try:
