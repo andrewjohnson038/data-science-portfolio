@@ -25,10 +25,17 @@ class GradeBatchMethods:
 
     # AWS S3 Configuration
 
-    # Retrieve credentials from Streamlit secrets
-    aws_access_key_id = st.secrets["aws_access_key_id"]
-    aws_secret_access_key = st.secrets["aws_secret_access_key"]
-    aws_region = st.secrets["aws_region"]
+    # Check if running in GitHub Actions or locally
+    if os.getenv('GITHUB_ACTIONS'):
+        # Running in GitHub Actions - use environment variables
+        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        aws_region = os.getenv('AWS_REGION')
+    else:
+        # Running locally - use Streamlit secrets
+        aws_access_key_id = st.secrets["aws_access_key_id"]
+        aws_secret_access_key = st.secrets["aws_secret_access_key"]
+        aws_region = st.secrets["aws_region"]
 
     # Create an S3 client using the credentials from Streamlit secrets
     s3 = boto3.client(
