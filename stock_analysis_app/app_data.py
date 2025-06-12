@@ -264,6 +264,13 @@ class AppData:
         earnings_date = stock_info.get('earningsDate', None)
         business_summary = stock_info.get('longBusinessSummary', 'No description available')
 
+        # Add fallback logic for previous close if comes in null
+        if previous_close is None:
+            # Try to use regular market price as fallback
+            previous_close = regular_market_price
+            if previous_close is None:
+                previous_close = stock_info.get('regularMarketOpen', None)
+
         # ESG Score
         esg_score = stock_info.get('esgScore', None)
 
