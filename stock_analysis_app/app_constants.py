@@ -3,6 +3,7 @@
 # Import Python Packages
 import streamlit as st
 from datetime import datetime, timedelta
+import os
 
 
 # --------------------------------------------------- Data: Set Time Parameters -----------------------------------------------------------------
@@ -27,6 +28,12 @@ class DateVars:
 
 # --------------------------------------------------- API Keys -----------------------------------------------------------------
 
-# Alpha Vantage API
-alpha_vantage_key = st.secrets.get("Alpha_Vantage_API_Key")
-groq_key = st.secrets.get("Groq_API_Key")
+# Check if running in GitHub Actions or locally
+if os.getenv('GITHUB_ACTIONS'):
+    # Running in GitHub Actions - use environment variables
+    alpha_vantage_key = os.getenv('Alpha_Vantage_API_Key')
+    groq_key = os.getenv('Groq_API_Key')
+else:
+    # Alpha Vantage API
+    alpha_vantage_key = st.secrets.get("Alpha_Vantage_API_Key")
+    groq_key = st.secrets.get("Groq_API_Key")
