@@ -9,10 +9,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import app methods
-from stock_analysis_app.app_constants import groq_key
+from stock_analysis_app.app_constants import GROQ_API_KEY
 
 # Create groq client
-client = Groq(api_key=groq_key)
+client = Groq(api_key=GROQ_API_KEY)
 
 # Session State
 if "default_model" not in st.session_state:

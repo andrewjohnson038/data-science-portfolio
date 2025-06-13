@@ -31,9 +31,9 @@ class DateVars:
 # Check if running in GitHub Actions or locally
 if os.getenv('GITHUB_ACTIONS'):
     # Running in GitHub Actions - use environment variables
-    alpha_vantage_key = os.getenv('Alpha_Vantage_API_Key')
-    groq_key = os.getenv('Groq_API_Key')
+    ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
+    GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 else:
     # Alpha Vantage API
-    alpha_vantage_key = st.secrets.get("Alpha_Vantage_API_Key")
-    groq_key = st.secrets.get("Groq_API_Key")
+    ALPHA_VANTAGE_API_KEY = st.secrets.get("ALPHA_VANTAGE_API_KEY")
+    GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")

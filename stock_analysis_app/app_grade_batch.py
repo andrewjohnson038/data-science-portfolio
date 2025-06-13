@@ -28,21 +28,21 @@ class GradeBatchMethods:
     # Check if running in GitHub Actions or locally
     if os.getenv('GITHUB_ACTIONS'):
         # Running in GitHub Actions - use environment variables
-        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        aws_region = os.getenv('AWS_REGION')
+        AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+        AWS_REGION = os.getenv('AWS_REGION')
     else:
         # Running locally - use Streamlit secrets
-        aws_access_key_id = st.secrets["aws_access_key_id"]
-        aws_secret_access_key = st.secrets["aws_secret_access_key"]
-        aws_region = st.secrets["aws_region"]
+        AWS_ACCESS_KEY_ID = st.secrets["AWS_ACCESS_KEY_ID"]
+        AWS_SECRET_ACCESS_KEY = st.secrets["AWS_SECRET_ACCESS_KEY"]
+        AWS_REGION = st.secrets["AWS_REGION"]
 
     # Create an S3 client using the credentials from Streamlit secrets
     s3 = boto3.client(
         's3',
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=aws_region
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_REGION
     )
 
     bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name

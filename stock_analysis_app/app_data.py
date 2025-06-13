@@ -12,7 +12,7 @@ from prophet import Prophet  # Import Prophet (META Time Series Model for Foreca
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
-from stock_analysis_app.app_constants import alpha_vantage_key
+from stock_analysis_app.app_constants import ALPHA_VANTAGE_API_KEY
 from stock_analysis_app.app_animations import CSSAnimations
 
 from datetime import datetime, timedelta
@@ -211,7 +211,7 @@ class AppData:
             params = {
                 "function": "OVERVIEW",  # Correct function for overview data
                 "symbol": ticker,
-                "apikey": alpha_vantage_key  # Make sure to replace this with your actual API key
+                "apikey": ALPHA_VANTAGE_API_KEY  # Make sure to replace this with your actual API key
             }
 
             response = requests.get(url, params=params)
