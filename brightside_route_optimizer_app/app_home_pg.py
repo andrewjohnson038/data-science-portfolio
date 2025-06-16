@@ -236,39 +236,52 @@ def extract_addresses_from_pdf(pdf_file):
 
     return sorted(addresses)
 
+# Create a single geolocator instance to reuse
+geolocator = Nominatim(user_agent="route_optimizer_v1.0", timeout=10)  # Use Nominatim geocoder with increased timeout and rate limiting
 
+
+# get coordinates function
 def get_coordinates(address):
     """Get coordinates (latitude, longitude) for an address using geopy."""
     try:
-        # Use Nominatim geocoder with increased timeout and rate limiting
-        geolocator = Nominatim(
-            user_agent="route_optimizer",
-            timeout=10  # Increase timeout to 10 seconds
-        )
+        # Input validation
+        if not address or not isinstance(address, str):
+            return None
+
+        address = address.strip()
+        if not address:
+            return None
+
+        # Check session state cache first
+        if 'cached_coordinates' not in st.session_state:
+            st.session_state.cached_coordinates = {}
+
+        if address in st.session_state.cached_coordinates:
+            return st.session_state.cached_coordinates[address]
+
         # Add Minnesota to the address if not already present
         if "Minnesota" not in address and "MN" not in address:
             address = f"{address}, Minnesota, USA"
 
-        # Add a delay between requests to respect rate limits
-        time.sleep(1.5)  # Wait 1.5 seconds between requests
+        # Rate limiting
+        time.sleep(1.5)
 
         location = geolocator.geocode(address)
+
         if location:
-            return (location.latitude, location.longitude)
+            coords = (location.latitude, location.longitude)
+            st.session_state.cached_coordinates[address] = coords
+            return coords
         else:
-            st.warning(f"Warning: Could not geocode address: {address}")
+            st.warning(f"Could not geocode address: {address}")
+            st.session_state.cached_coordinates[address] = None
             return None
+
     except Exception as e:
-        st.warning(f"Error geocoding address {address}: {e}")
-        # Add a longer delay after an error
+        st.warning(f"Error geocoding address '{address}': {e}")
         time.sleep(2)
         return None
 
-# Cache for geocoding results
-@lru_cache(maxsize=1000)
-def get_coordinates_cached(address):
-    """Cached version of get_coordinates to avoid repeated API calls for the same address"""
-    return get_coordinates(address)
 
 def optimize_routes(addresses, num_groups):
     """
@@ -277,7 +290,6 @@ def optimize_routes(addresses, num_groups):
     Special Rules:
     1. If a group contains '1920 4th Ave S', limit that group to 3 addresses (including it). This is because the driver who gets this route has to sit at this location to distribute bags
     2. Any extra addresses in that group are redistributed to the nearest other group
-    3. All addresses are assumed to be in Minnesota for proper geocoding
 
     Algorithm Steps:
     1. Geocode all addresses to get coordinates
@@ -362,7 +374,7 @@ def optimize_routes(addresses, num_groups):
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         # Submit all geocoding tasks
         future_to_address = {
-            executor.submit(get_coordinates_cached, address): address
+            executor.submit(get_coordinates, address): address
             for address in addresses
         }
 
@@ -397,7 +409,7 @@ def optimize_routes(addresses, num_groups):
     status_text.info("Creating initial route groups...")
 
     # Coordinates for starting location
-    start_coord = get_coordinates_cached("693 Raymond Ave, St Paul, MN 55114")
+    start_coord = get_coordinates("693 Raymond Ave, St Paul, MN 55114")
 
     # Create feature set: lat, lon, and distance from start
     features = []
@@ -621,7 +633,6 @@ def optimize_routes(addresses, num_groups):
                                     except Exception as e:
                                         st.warning(f"Error re-optimizing route {reopt_idx + 1}: {e}")
 
-
             if routes_balanced:
                 break
 
@@ -779,7 +790,7 @@ def order_route_by_distance(coords, addresses, api_key=None):
             st.warning(f"Google Directions API failed for ordering: {e}. Falling back to distance-based ordering.")
             # Fallback to distance-based ordering
     # Fallback: use nearest-neighbor if no API key or API failed
-    start_coord = get_coordinates_cached(START_ADDRESS) # Use cached geocoding
+    start_coord = get_coordinates(START_ADDRESS) # Use cached geocoding
     if not coords or len(coords) != len(addresses) or not start_coord:
         # If geocoding failed for the start address or addresses, return original order
         if not start_coord:
@@ -904,7 +915,7 @@ def go_to_step(step):
     st.rerun()
 
 
-# Main app UI (now within the page)
+# Main app UI
 def app_home_page():
 
     # Initialize session state variables
@@ -1032,7 +1043,7 @@ def app_home_page():
 
                 for i, group in enumerate(route_groups):
                     # Geocode each address in the group to get coordinates for ordering
-                    group_coords_for_ordering = [get_coordinates_cached(addr) for addr in group] # Use cached version
+                    group_coords_for_ordering = [get_coordinates(addr) for addr in group] # Use cached version
 
                     # Filter out None coords before ordering
                     valid_group_addresses = [group[j] for j, coord in enumerate(group_coords_for_ordering) if coord is not None]
@@ -1168,9 +1179,9 @@ def app_home_page():
 
                             if group_idx not in st.session_state.cached_coordinates:
                                 # Include start point coordinates for map
-                                start_coords = get_coordinates_cached(START_ADDRESS)
+                                start_coords = get_coordinates(START_ADDRESS)
                                 coords_for_map = [start_coords] if start_coords else []
-                                coords_for_map.extend([get_coordinates_cached(addr) for addr in route_group])
+                                coords_for_map.extend([get_coordinates(addr) for addr in route_group])
                                 valid_coords_for_map = [coord for coord in coords_for_map if coord is not None]
                                 if valid_coords_for_map:
                                     st.session_state.cached_coordinates[group_idx] = valid_coords_for_map
