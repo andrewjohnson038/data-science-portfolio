@@ -176,7 +176,7 @@ with sh_g.container():
             # Style and format the df for visual
             ticker_grades_df = filtered_df.style \
                 .format({'Score': '{:.2f}'}) \
-                .applymap(color_grades, subset=['Grade'])
+                .map(color_grades, subset=['Grade'])
 
             # Display the styled dataframe
             st.dataframe(ticker_grades_df, use_container_width=True)

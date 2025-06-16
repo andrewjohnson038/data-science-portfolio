@@ -91,7 +91,7 @@ class AppData:
         end_date_str = end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else end_date
 
         # Download data with string-formatted dates
-        stock_price_history_df = yf.download(ticker, start=start_date_str, end=end_date_str)
+        stock_price_history_df = yf.download(ticker, start=start_date_str, end=end_date_str, auto_adjust=True)
 
         if stock_price_history_df.empty:
             st.error(f"No data returned for ticker '{ticker}' in the selected date range.")
