@@ -15,7 +15,6 @@ import time
 import logging
 import requests
 import concurrent.futures
-from functools import lru_cache
 import boto3
 from io import StringIO
 
@@ -206,7 +205,7 @@ def extract_addresses_from_pdf(pdf_file):
 
                     # If pattern is found, extract the address components
                     if match:
-                        building = match.group(1)    # Building name (could be None) - we'll ignore this
+                        # building = match.group(1)    # Building name (could be None)
                         number = match.group(2)      # Street number
                         street = match.group(3)      # Street name and type
                         city = match.group(4)        # City name
@@ -1370,7 +1369,6 @@ def app_home_page():
                             if assigned_group_idx is not None and hasattr(st.session_state, 'cached_traffic_info'):
                                 if assigned_group_idx in st.session_state.cached_traffic_info:
                                     info = st.session_state.cached_traffic_info[assigned_group_idx]
-
 
                             email_body = f"""Hi {assignee_name},
 
