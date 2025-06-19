@@ -51,9 +51,9 @@ def load_csv_from_s3(bucket_name, file_key):
     pd.DataFrame: The loaded DataFrame.
     """
     # Retrieve credentials from Streamlit secrets
-    aws_access_key_id = st.secrets["aws_access_key_id"]
-    aws_secret_access_key = st.secrets["aws_secret_access_key"]
-    aws_region = st.secrets["aws_region"]
+    aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+    aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+    aws_region = st.secrets["AWS_REGION"]
 
     # Create an S3 client using the credentials from secrets
     s3_client = boto3.client(
@@ -73,8 +73,12 @@ def load_csv_from_s3(bucket_name, file_key):
 bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
 file_key = 'ticker_grades_output.csv'  # name of object in S3 bucket
 
-# Load the grades data from the S3 bucket
-grades_df = load_csv_from_s3(bucket_name, file_key)
+# wrap grades_df in session state so data pull doesn't reload when navigating pages
+if "grades_df" not in st.session_state:
+    st.session_state["grades_df"] = load_csv_from_s3(bucket_name, file_key)
+
+# assign to session state var
+grades_df = st.session_state["grades_df"]
 
 # Ticker Search Section
 sh_g.write("Ticker Grade Search:")
@@ -99,23 +103,39 @@ with sh_g.container():
         # Add filters
         col1, col2, col3, col4 = st.columns(4)
 
+        with col1:
+            # Ticker Search with session key
+            ticker_search = st.text_input(
+                "Search Ticker (e.g. AAPL)",
+                key="ticker_search"  # key Uniquely identify and persist a widget’s value in st.session_state
+            )
+
         with col2:
-            # Filter by grade
+            # Grade Filter with session key
             all_grades = ['All'] + sorted(grades_df['Grade'].unique().tolist())
-            selected_grade = st.selectbox("Filter by Grade", all_grades)
+            selected_grade = st.selectbox(
+                "Filter by Grade",
+                options=all_grades,
+                key="selected_grade"
+            )
 
         with col3:
-            # Filter by industry
+            # Industry Filter with session key
             all_industries = ['All'] + sorted(grades_df['Industry'].unique().tolist())
-            selected_industry = st.selectbox("Filter by Industry", all_industries)
+            selected_industry = st.selectbox(
+                "Filter by Industry",
+                options=all_industries,
+                key="selected_industry"
+            )
 
         with col4:
-            # Sort options
-            sort_options = ['Grade (Best First)', 'Grade (Worst First)', 'Score (High to Low)', 'Ticker (A-Z)']
-            sort_selection = st.selectbox("Sort by", sort_options)
-
-        with col1:
-            ticker_search = st.text_input("Search Ticker (e.g. AAPL)", value="")
+            # Sort Option with session key
+            sort_grade_options = ['Score (High to Low)', 'Grade (Best First)', 'Ticker (A-Z)', 'Grade (Worst First)']
+            sort_selection = st.selectbox(
+                "Sort by",
+                options=sort_grade_options,
+                key="sort_grade_options"
+            )
 
         # Apply filters
         filtered_df = grades_df.copy()
