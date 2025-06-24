@@ -9,6 +9,9 @@ import requests
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing  # import lib for applying exponential smoothing line
 from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
 from prophet import Prophet  # Import Prophet (META Time Series Model for Forecasting)
+import boto3  # AWS client
+from io import StringIO
+import time
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
@@ -842,6 +845,88 @@ class AppData:
         forecast_df['yhat'] = forecast['yhat'].apply(lambda x: max(0.01, x))  # Set all negative values to 1 cent
 
         return trained_model, forecast_df
+
+
+    @staticmethod
+    @st.cache_data  # cache data
+    # Function to Load CSV from S3 using credentials
+    def load_csv_from_s3(bucket_name, csv_path):
+        """
+        Load the CSV file from S3 into a pandas DataFrame.
+
+        Parameters:
+        bucket_name (str): The name of the S3 bucket.
+        file_key (str): The S3 file key (path).
+
+        Returns:
+        pd.DataFrame: The loaded DataFrame.
+        """
+        # Retrieve credentials from Streamlit secrets
+        aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+        aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+        aws_region = st.secrets["AWS_REGION"]
+
+        # Create an S3 client using the credentials from secrets
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=aws_region
+        )
+
+        # Get the object from S3
+        obj = s3_client.get_object(Bucket=bucket_name, Key=csv_path)
+        data = obj['Body'].read().decode('utf-8')  # Read the content of the CSV
+        df = pd.read_csv(StringIO(data))  # Convert the content into a pandas DataFrame
+        return df
+
+    # method to upload to watchlist csv file
+    @staticmethod
+    def upsert_ticker_to_s3_csv(ticker: str, bucket_name, csv_path):
+        """
+        Upsert a ticker to watchlist CSV file in S3. If the ticker is not in the CSV, append it and save.
+        """
+        # Load AWS credentials from Streamlit secrets
+        aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+        aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+        aws_region = st.secrets["AWS_REGION"]
+
+        # Create S3 client
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=aws_region,
+        )
+
+        # for success / fail message
+        message_container = st.empty()
+
+        # Try to load the existing CSV
+        try:
+            obj = s3.get_object(Bucket=bucket_name, Key=csv_path)
+            df = pd.read_csv(obj["Body"])
+        except s3.exceptions.NoSuchKey:
+            # File doesn't exist — create a new DataFrame
+            df = pd.DataFrame(columns=["Ticker"])
+
+        # Append if not already present
+        if ticker not in df["Ticker"].values:
+            df = pd.concat([df, pd.DataFrame([{"Ticker": ticker}])], ignore_index=True)
+
+            # Convert to CSV and upload
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False)
+            s3.put_object(Bucket=bucket_name, Key=csv_path, Body=csv_buffer.getvalue())
+
+            # Show success message temporarily
+            message_container.success(f"Ticker '{ticker}' added to watchlist.")
+        else:
+            message_container.info(f"Ticker '{ticker}' is already in the watchlist.")
+
+        # Wait 3 seconds, then clear the message
+        time.sleep(3)
+        message_container.empty()
 
 
 # ---- TEST BLOCK ----

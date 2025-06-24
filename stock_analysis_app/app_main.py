@@ -17,9 +17,10 @@ st.sidebar.markdown(
 home_page = st.Page("page_home.py", title="Home", icon=":material/home:")
 grade_page = st.Page("page_grades.py", title="Stock Grades", icon=":material/analytics:")
 chat_page = st.Page("page_chatbot.py", title="Chat Bot", icon=":material/robot:")
+watchlist_page = st.Page("page_watchlist.py", title="Watch List", icon=":material/list:")
 
 # Set var for navigation method
-pg = st.navigation([home_page, grade_page, chat_page])
+pg = st.navigation([home_page, grade_page, watchlist_page, chat_page])
 
 # run
 pg.run()

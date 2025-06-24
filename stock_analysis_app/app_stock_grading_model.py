@@ -145,6 +145,7 @@ class StockGradeModel:
 
         # PE Ratio / YOY Growth (13%)
         pe_ratio = stock_metrics_dict.get('PE Ratio')
+
         yoy_revenue_growth = stock_metrics_dict.get('YOY Revenue Growth')
 
         if pe_ratio is not None and yoy_revenue_growth is not None:

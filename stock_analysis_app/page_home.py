@@ -23,35 +23,69 @@ animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
 
-# Initialize session state for tracking ticker changes
-if 'current_ticker' not in st.session_state:
-    st.session_state.current_ticker = None
 
+# --------- additional data loaders
 # Cache data loading operations
 @st.cache_data(ttl=3600)  # 3600 = 1 hour cache
 def get_stock_data(selected_stock: str, st_dt, end_dt):
     return data.load_price_hist_data(selected_stock, st_dt, end_dt)
 
+
 @st.cache_data(ttl=3600)
 def get_stock_metrics(selected_stock: str):
     return data.load_curr_stock_metrics(selected_stock)
+
 
 @st.cache_data(ttl=3600)
 def get_analyst_data(selected_stock: str):
     return data.fetch_yf_analyst_price_targets(selected_stock), data.fetch_yf_analyst_recommendations(selected_stock)
 
+
 @st.cache_resource
 def get_forecast_data(price_history_df, forecast_years):
     return data.get_forecasted_data_df(price_history_df, forecast_years)
 
+
+# --------- sidebar + ticker set up
+
+# Initialize session state for selected ticker
+if 'current_ticker' not in st.session_state:
+    st.session_state.current_ticker = None
+
+# Create Var for filtered list of tickers that will be used throughout the app
+ticker_list = data.filtered_tickers()
+
+# Set default index
+if st.session_state.current_ticker and st.session_state.current_ticker in ticker_list:
+    default_index = ticker_list.index(st.session_state.current_ticker)
+else:
+    default_index = 0
+
+# Create a dropdown box - use key to persist selection
+selected_stock = st.sidebar.selectbox(
+    "Select Stock:",
+    ticker_list,
+    index=default_index,
+    key="ticker_dropdown"
+)
+
+# Update session state
+st.session_state.current_ticker = selected_stock
+
+# add to Watch List button
+if st.button("Add to Watch list"):
+    data.upsert_ticker_to_s3_csv(selected_stock, 'stock-ticker-data-bucket', 'ticker_watchlist.csv')
+    st.session_state.watchlist_updated = True
+
+# Create an interactive year range slider and set our forecast range period:
+forecasted_year_range_slider = st.sidebar.slider("Choose a Forecast Range (Years):", 1,
+                                                 10)  # creates a slider for forecast years. 1 and 10 are the year range
+
+
+# ------------- app render
 # Cache and wrap home page render based on ticker selected
 @st.cache_resource
 def render_home_page_data(selected_stock: str):
-    # Check if ticker has changed
-    if st.session_state.current_ticker != selected_stock:
-        st.session_state.current_ticker = selected_stock
-        st.cache_data.clear()
-        st.cache_resource.clear()
 
     # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
     st_dt = dv.start_date
@@ -273,47 +307,23 @@ def render_home_page_data(selected_stock: str):
         selected_stock_mc_sim_df, selected_stock_sharpe_ratio,
         selected_stock_hist_yearly_VaR_95, selected_stock_rsi_score, selected_stock_sma_percentage_difference)
 
-    if selected_stock_score is not None:
-        # Display the grade in a rounded box with the grade color
-        st.markdown(f"""
-            <div style="background-color:{selected_stock_grade_color_background}; 
-                        color:white; 
-                        font-size:20px; 
-                        font-weight:bold; 
-                        padding:10px 20px; 
-                        border-radius:15px; 
-                        border: 1px solid {selected_stock_grade_color_outline};
-                        display:inline-block;">
-                Model Grade: {selected_stock_grade}
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.write(f"Error calculating grades for {selected_stock}")
-
     # ///////////////////////////////////////////////////////////// Home Tab //////////////////////////////////////////////////////////////////////////
 
     NA = "no data available for this stock"  # assign variable so can use in elseif statements when there is no data
 
-    # Add Company Name:
-    # Create a container for the company name:
-    cn_c = st.container()
-
-    # Check if data is available for the field:
-    with cn_c:
-        if selected_stock_company_name and selected_stock_company_name.strip():  # if the field is not missing (use strip() for strings instead of .empty since it is not an object in the df in this situation)
-            # Write the value to the app for today in KPI format if the data is available
-            # Custom CSS for styling the kpis below with a translucent grey border
-            st.markdown(
-                f"""
-                    <div style="display: flex; justify-content: center; align-items: center;">
-                        <h1 style="font-size: 32px; margin: 0;">{selected_stock_company_name}</h1>
-                    </div>
-                    """,
-                unsafe_allow_html=True
-            )
-        else:
-            # Write the data is not available for the field if missing:
-            st.warning("Company Name: Not Available")
+    if selected_stock_score is not None and selected_stock_company_name and selected_stock_company_name.strip():
+        st.markdown(f"""
+        <div style="display: flex; justify-content: center; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h1 style="font-size: 32px; margin: 0;">{selected_stock_company_name}</h1>
+                <div style="background-color:{selected_stock_grade_color_background}; color:white; font-size:20px; font-weight:bold; padding:10px 20px; border-radius:15px; border: 1px solid {selected_stock_grade_color_outline};">
+                    Model Grade: {selected_stock_grade}
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.warning("Company Name or Grade: Not Available")
 
     # Add a Line Seperator under the company name
     st.markdown("""---""")
@@ -845,7 +855,7 @@ def render_home_page_data(selected_stock: str):
                     'Low': '{:.2f}',
                     'Open': '{:.2f}',
                     'Volume': '{:.0f}',
-                    'Price Change': '{:.2f}',
+                    'Price Change': '${:.2f}',
                     'Percentage Change': '{:.2f}%'
                 })
 
@@ -1434,19 +1444,8 @@ def render_home_page_data(selected_stock: str):
             # write df to app if not empty
             else:
                 st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
-            # ----------------- Agency Grades
 
 # -------- Sidebar: Add Dropdowns containing notes on metrics
-
-# Create Var for filtered list of tickers that will be used throughout the app
-ticker_list = data.filtered_tickers()
-
-# Create a dropdown box for ticker list (First is the dd title, second is the dd options)
-selected_stock = st.sidebar.selectbox("Select Stock:", ticker_list)
-
-# Create an interactive year range slider and set our forecast range period:
-forecasted_year_range_slider = st.sidebar.slider("Choose a Forecast Range (Years):", 1,
-                                                 10)  # creates a slider for forecast years. 1 and 10 are the year range
 
 # Drop-downs with Notes on Sidebar:
 st.sidebar.header("Financial Ratio Notes")
