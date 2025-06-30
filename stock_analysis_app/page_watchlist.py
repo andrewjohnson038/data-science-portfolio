@@ -163,7 +163,7 @@ if not watchlist_df.empty:
                         data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
                         st.rerun()  # refresh UI
 
-                kpi_height = 125
+                kpi_height = 130
 
                 # Add kpi
                 with col2:
