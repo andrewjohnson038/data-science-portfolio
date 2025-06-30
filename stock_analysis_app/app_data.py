@@ -848,7 +848,6 @@ class AppData:
 
 
     @staticmethod
-    @st.cache_data  # cache data
     # Function to Load CSV from S3 using credentials
     def load_csv_from_s3(bucket_name, csv_path):
         """
@@ -880,11 +879,19 @@ class AppData:
         df = pd.read_csv(StringIO(data))  # Convert the content into a pandas DataFrame
         return df
 
-    # method to upload to watchlist csv file
+    # method to upload ticker to watchlist csv file
     @staticmethod
-    def upsert_ticker_to_s3_csv(ticker: str, bucket_name, csv_path):
+    def upsert_watchlist_to_s3_csv(ticker: str, industry: str, current_price: float, bucket_name, csv_path):
         """
-        Upsert a ticker to watchlist CSV file in S3. If the ticker is not in the CSV, append it and save.
+        Upsert a ticker to watchlist CSV file in S3.
+        If the ticker is not in the CSV, append it with current price and timestamp.
+
+        Args:
+            ticker (str): Stock ticker symbol
+            current_price (float): Current market price of the stock
+            bucket_name (str): S3 bucket name
+            csv_path (str): Path to CSV file in S3
+            industry (str): ticker industry
         """
         # Load AWS credentials from Streamlit secrets
         aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
@@ -907,12 +914,23 @@ class AppData:
             obj = s3.get_object(Bucket=bucket_name, Key=csv_path)
             df = pd.read_csv(obj["Body"])
         except s3.exceptions.NoSuchKey:
-            # File doesn't exist — create a new DataFrame
-            df = pd.DataFrame(columns=["Ticker"])
+            # File doesn't exist — create a new DataFrame with proper columns
+            df = pd.DataFrame(columns=["Ticker", "Price_When_Added", "Date_Added"])
 
         # Append if not already present
         if ticker not in df["Ticker"].values:
-            df = pd.concat([df, pd.DataFrame([{"Ticker": ticker}])], ignore_index=True)
+            # Get current date (today's date)
+            current_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+
+            # Create new row with ticker, price, and timestamp
+            new_row = {
+                "Ticker": ticker,
+                "Industry": industry,
+                "Price_When_Added": current_price,
+                "Date_Added": current_date
+            }
+
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
             # Convert to CSV and upload
             csv_buffer = StringIO()
@@ -920,12 +938,69 @@ class AppData:
             s3.put_object(Bucket=bucket_name, Key=csv_path, Body=csv_buffer.getvalue())
 
             # Show success message temporarily
-            message_container.success(f"Ticker '{ticker}' added to watchlist.")
+            message_container.success(f"Ticker '{ticker}' added to watchlist at ${current_price:.2f}.")
         else:
             message_container.info(f"Ticker '{ticker}' is already in the watchlist.")
 
-        # Wait 3 seconds, then clear the message
-        time.sleep(3)
+        # Wait 1 second, then clear the message
+        time.sleep(2)
+        message_container.empty()
+
+    @staticmethod
+    def remove_from_watchlist(ticker: str, bucket_name, csv_path):
+        """
+        Remove a ticker from the watchlist CSV stored in S3.
+
+        Args:
+            ticker (str): Stock ticker to remove.
+            bucket_name (str): Name of the S3 bucket.
+            csv_path (str): Path to the watchlist CSV in the S3 bucket.
+        """
+        import boto3
+        import pandas as pd
+        from io import StringIO
+        import time
+
+        # Load AWS credentials from Streamlit secrets
+        aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+        aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+        aws_region = st.secrets["AWS_REGION"]
+
+        # Create S3 client
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=aws_region,
+        )
+
+        message_container = st.empty()
+
+        try:
+            # Load existing CSV from S3
+            obj = s3.get_object(Bucket=bucket_name, Key=csv_path)
+            df = pd.read_csv(obj["Body"])
+
+            # Check if ticker is in the watchlist
+            if ticker in df["Ticker"].values:
+                df = df[df["Ticker"] != ticker]  # Remove the ticker row
+
+                # Upload updated CSV back to S3
+                csv_buffer = StringIO()
+                df.to_csv(csv_buffer, index=False)
+                s3.put_object(Bucket=bucket_name, Key=csv_path, Body=csv_buffer.getvalue())
+
+                message_container.error(f"Ticker '{ticker}' removed from the watchlist.")
+            else:
+                message_container.info(f"Ticker '{ticker}' not found in the watchlist.")
+
+        except s3.exceptions.NoSuchKey:
+            message_container.warning("Watchlist file not found in S3.")
+        except Exception as e:
+            message_container.error(f"Error removing ticker: {str(e)}")
+
+        # Wait 2 second, then clear the message
+        time.sleep(2)
         message_container.empty()
 
 

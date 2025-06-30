@@ -14,13 +14,36 @@ from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_data import AppData
 from stock_analysis_app.app_animations import CSSAnimations
 from stock_analysis_app.app_stock_grading_model import StockGradeModel
+from stock_analysis_app.app_constants import ExtraComponents
 
+
+# ---------------- SET UP DATA/MODULES ----------------
 # Instantiate any imported classes here:
 dv = DateVars()
 animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
+ec = ExtraComponents()
 
+# Set Data Vars
+bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
+csv_path = 'ticker_grades_output.csv'  # name of object in S3 bucket
+
+
+# ---------------- SIDEBAR CONTENT: GET NOTES ----------------
+ec.get_sidebar_notes()
+
+
+# ---------------- SESSION STATE: SET GRADES DF ----------------
+# wrap grades_df in session state so data pull doesn't reload when navigating pages
+if "grades_df" not in st.session_state:
+    st.session_state["grades_df"] = data.load_csv_from_s3(bucket_name, csv_path)
+
+# assign to session state var
+grades_df = st.session_state["grades_df"]
+
+
+# ---------------- PAGE CONTENT: TITLE ----------------
 # Provide Page Title
 st.markdown(
     f"""
@@ -37,18 +60,9 @@ st.write("---")
 # Create Container
 sh_g = st.container()
 
-# Replace with your actual S3 bucket and file key
-bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
-csv_path = 'ticker_grades_output.csv'  # name of object in S3 bucket
 
-# wrap grades_df in session state so data pull doesn't reload when navigating pages
-if "grades_df" not in st.session_state:
-    st.session_state["grades_df"] = data.load_csv_from_s3(bucket_name, csv_path)
-
-# assign to session state var
-grades_df = st.session_state["grades_df"]
-
-# Ticker Search Section
+# ---------------- PAGE CONTENT: RENDER PAGE ----------------
+# Ticker Search Section Title
 sh_g.write("Ticker Grade Search:")
 
 # Write Grades Search to App
@@ -136,6 +150,7 @@ with sh_g.container():
             filtered_df = filtered_df.sort_values('Ticker')
 
         st.write("---")
+
         # Define a function to color the grades
         def color_grades(val):
             grade_colors = {
@@ -164,7 +179,7 @@ with sh_g.container():
             # Style and format the df for visual
             ticker_grades_df = filtered_df.style \
                 .format({'Score': '{:.2f}'}) \
-                .map(color_grades, subset=['Grade'])
+                .map(color_grades, subset=['Grade'])  # map colors to grades column
 
             # Display the styled dataframe
             st.dataframe(ticker_grades_df, use_container_width=True)
@@ -175,88 +190,9 @@ with sh_g.container():
             grade_counts = grades_df['Grade'].value_counts().sort_index()
             st.bar_chart(grade_counts)
 
-    # Write Custom Model Grade to App
+    # Write Grades Section to App
     add_ticker_grades_section(grades_df)
 
-
-# Drop-downs with Notes on Sidebar:
-st.sidebar.header("Financial Ratio Notes")
-with st.sidebar.expander("MARKET VALUE RATIOS"):
-    st.write("---Measure the current market price relative to its value---")
-    st.write('<span style="color: lightcoral;">PE Ratio: [Market Price per Share / EPS]</span>',
-             unsafe_allow_html=True)  # adding the additional HTML code allows us to change the text color in the write statement
-    st.markdown(
-        "[AVG PE Ratio by Sector](https://fullratio.com/pe-ratio-by-industry)")  # Insert a link on the sidebar to avg PE ratio by sector
-    st.write(
-        "Ratio Notes: PE should be evaluated and compared to competitors within the sector. A PE over the avg "
-        "industry PE might indicate that the stock is selling at a premium, but may also indicate higher expected "
-        "growth/trade volume; A lower PE may indicate that the stock is selling at a discount, but may also indicate "
-        "low growth/trade volume.")
-    st.write('<span style="color: lightcoral;">PEG Ratio: [PE / EPS Growth Rate]</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: PEG > 1 = Likely overvalued || PEG < 1 = Likely undervalued")
-    st.write(
-        '<span style="color: lightcoral;">Price-to-Book Ratio: [Market Price per Share / Book Value Per Share]</span>',
-        unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: PB > 1 = Indicates stock might be overvalued copared to its assets || PB < 1 = Indicates stock "
-        "might be undervalued copared to its assets || Typically not a good indicator for companies with intangible "
-        "assets, such as tech companies.")
-    st.write('<span style="color: lightcoral;">Price-to-Sales Ratio: [Market Cap / Revenue]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: 2-1 = Good || Below 1 = Better || Lower = Indicates the company is generating more revenue for "
-        "every dollar investors have put into the company.")
-
-with st.sidebar.expander("PROFITABILITY RATIOS"):
-    st.write("---Measure the combined effects of liquidity, asset mgmt, and debt on operating results---")
-    st.write('<span style="color: lightcoral;">ROE (Return on Equity): [Net Income / Common Equity]</span>',
-             unsafe_allow_html=True)
-    st.write("Ratio Notes: Measures total return on investment | Compare to the stock's sector | Bigger = Better")
-
-with st.sidebar.expander("LIQUIDITY RATIOS"):
-    st.write("---Measure the ability to meet current liabilities in the short term (Bigger = Better)---")
-    st.write('<span style="color: lightcoral;">Current Ratio: [Current Assets / Current Liabilities]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: Close to or over 1 = Good || Over 1 means the company is covering its bills due within a one "
-        "year period")
-    st.write(
-        '<span style="color: lightcoral;">Quick Ratio: [(Current Assets - Inventory) / Current Liabilities]</span>',
-        unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: Close to or over 1 = Good || Over 1 means the company is able to cover its bills due within a "
-        "one year period w/ liquid cash")
-
-with st.sidebar.expander("ASSET MANAGEMENT RATIOS"):
-    st.write("---Measure how effectively assets are being managed---")
-    st.write('<span style="color: lightcoral;">Dividend Yield: [DPS / SP]</span>', unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: For low growth stocks, should be higher and should look for consistent div growth over time- "
-        "with signs of consistenly steady financials (able to pay debts consistently; want to see the company is "
-        "managing its money well) || For growth stocks, typically lower, but if a stock shows high growth over time "
-        "w/ a dividend yield that continues to remain the same or grow over time, this is a good sign (good to "
-        "compare with their Current Ratio)")
-
-with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
-    st.write("---Measure how well debts are being managed---")
-    st.write('<span style="color: lightcoral;">Debt-to-Equity: [Total Liabilities / Total Shareholder Equity]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: A good D/E ratio will vary by sector & company. Typically a 1.0-1.5 ratio is ideal. The main "
-        "thing to look for is that if the company is leveraging debt is that it has enough liquidity and consistent "
-        "return to pay off those debts. Leveraging debt (when managed well) can be a good indicator that a growth "
-        "company is leveraging debt in order to re-invest and grow faster, which is typically a good sign that the "
-        "company is strategically well managed.")
-
-with st.sidebar.expander("PERFORMANCE/RISK RATIOS"):
-    st.write("---Measures performance in the market against a certain benchmark---")
-    st.write('<span style="color: lightcoral;">Beta:</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: Beta measures the volatility of an investment relative to the overall market or benchmark "
-             "index. Beta > 1 = more volatile; Beta < 1 = less volatile.")
-    st.write('<span style="color: lightcoral;">Sharpe Ratio: [(Return - RFR) / SD of Returns]</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: Sharpe Ratio measures the level of adjusted-risk to return of an investment against the "
-             "current risk-free rate. The higher the ratio, the better overall return the asset provides against the "
-             "level of risk taken investing into the asset. A Sharpe Ratio > 1 = good; > 2 = very good.")
 
 # ---- TEST BLOCK ----
 if __name__ == "__main__":

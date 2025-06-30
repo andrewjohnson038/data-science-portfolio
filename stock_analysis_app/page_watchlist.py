@@ -13,32 +13,31 @@ from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_data import AppData
 from stock_analysis_app.app_animations import CSSAnimations
 from stock_analysis_app.app_stock_grading_model import StockGradeModel
+from stock_analysis_app.app_constants import ExtraComponents
+from stock_analysis_app.app_constants import GradeColors
 
+# ---------------- SET UP DATA/MODULES ----------------
 # Instantiate any imported classes here:
 dv = DateVars()
 animation = CSSAnimations()
 data = AppData()
 model = StockGradeModel()
+ec = ExtraComponents()
+gc = GradeColors()
 
-# Provide Page Title
-st.markdown(
-    f"""
-                    <div style="display: flex; justify-content: center; align-items: center;">
-                        <h1 style="font-size: 32px; margin: 0;">Watch List</h1>
-                    </div>
-                    """,
-    unsafe_allow_html=True
-)
+# Set data vars
+aws_bucket = 'stock-ticker-data-bucket'  # S3 bucket name
+wl_csv = 'ticker_watchlist.csv'  # name of object in S3 bucket
 
-# Add a divider
-st.write("---")
 
-bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
-csv_path = 'ticker_watchlist.csv'  # name of object in S3 bucket
+# ---------------- SIDEBAR CONTENT: GET NOTES ----------------
+ec.get_sidebar_notes()
 
+
+# ---------------- SESSION STATE: SET WATCHLIST ----------------
 # wrap grades_df in session state so data pull doesn't reload when navigating pages
 if "watchlist_df" not in st.session_state:
-    st.session_state["watchlist_df"] = data.load_csv_from_s3(bucket_name, csv_path)
+    st.session_state["watchlist_df"] = data.load_csv_from_s3(aws_bucket, wl_csv)
 
 # assign to session state var
 watchlist_df = st.session_state["watchlist_df"]
@@ -54,91 +53,201 @@ else:
     # Load once or from cache
     watchlist_df = data.load_csv_from_s3('stock-ticker-data-bucket', 'ticker_watchlist.csv')
 
+
+# ---------------- PAGE CONTENT: TITLE ----------------
+# Markdown title
+st.markdown(
+    f"""
+    <div style="display: flex; justify-content: center; align-items: center;">
+        <h1 style="font-size: 32px; margin: 0;">Watch List</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Divider
+st.write("---")
+
+
+# ---------------- PAGE CONTENT: Search Bar ----------------
+
+# Add columns to break up page spacing
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    # Ticker Search with session key
+    wl_ticker_search = st.text_input(
+        "Search Ticker (e.g. AAPL)",
+        key="wl_ticker_search"  # key Uniquely identify and persist a widget’s value in st.session_state
+    )
+
+    if wl_ticker_search.strip():  # removes spaces
+        watchlist_df = watchlist_df[watchlist_df['Ticker'].str.contains(wl_ticker_search.strip(), case=False)]
+
+
+# ---------------- PAGE CONTENT: WATCHLIST CARDS ----------------
 # container title
-st.write("Ticker Model Grades / Scores:")
+# st.write("Watchlist:")
 
-# Create Container
-sh_wl = st.container(border=True)
+# Check if watchlist has data
+if not watchlist_df.empty:
 
-with sh_wl:
-    st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
+    # Create cards for each stock
+    for index, row in watchlist_df.iterrows():
+        ticker = row['Ticker']  # ticker per looped ticker
+        industry = row['Industry']  # industry per looped ticker
 
+        # Get current stock data
+        try:
+            # Fetch stock data for the looped ticker
+            stock_metrics_df = data.load_curr_stock_metrics(ticker)
 
-# Drop-downs with Notes on Sidebar:
-st.sidebar.header("Financial Ratio Notes")
-with st.sidebar.expander("MARKET VALUE RATIOS"):
-    st.write("---Measure the current market price relative to its value---")
-    st.write('<span style="color: lightcoral;">PE Ratio: [Market Price per Share / EPS]</span>',
-             unsafe_allow_html=True)  # adding the additional HTML code allows us to change the text color in the write statement
-    st.markdown(
-        "[AVG PE Ratio by Sector](https://fullratio.com/pe-ratio-by-industry)")  # Insert a link on the sidebar to avg PE ratio by sector
-    st.write(
-        "Ratio Notes: PE should be evaluated and compared to competitors within the sector. A PE over the avg "
-        "industry PE might indicate that the stock is selling at a premium, but may also indicate higher expected "
-        "growth/trade volume; A lower PE may indicate that the stock is selling at a discount, but may also indicate "
-        "low growth/trade volume.")
-    st.write('<span style="color: lightcoral;">PEG Ratio: [PE / EPS Growth Rate]</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: PEG > 1 = Likely overvalued || PEG < 1 = Likely undervalued")
-    st.write(
-        '<span style="color: lightcoral;">Price-to-Book Ratio: [Market Price per Share / Book Value Per Share]</span>',
-        unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: PB > 1 = Indicates stock might be overvalued copared to its assets || PB < 1 = Indicates stock "
-        "might be undervalued copared to its assets || Typically not a good indicator for companies with intangible "
-        "assets, such as tech companies.")
-    st.write('<span style="color: lightcoral;">Price-to-Sales Ratio: [Market Cap / Revenue]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: 2-1 = Good || Below 1 = Better || Lower = Indicates the company is generating more revenue for "
-        "every dollar investors have put into the company.")
+            # Get stock grades df
+            stock_grade_df = data.load_csv_from_s3('stock-ticker-data-bucket', 'ticker_grades_output.csv')
 
-with st.sidebar.expander("PROFITABILITY RATIOS"):
-    st.write("---Measure the combined effects of liquidity, asset mgmt, and debt on operating results---")
-    st.write('<span style="color: lightcoral;">ROE (Return on Equity): [Net Income / Common Equity]</span>',
-             unsafe_allow_html=True)
-    st.write("Ratio Notes: Measures total return on investment | Compare to the stock's sector | Bigger = Better")
+            # Get industry avg df
+            industry_avg_df = data.get_industry_averages_df()
 
-with st.sidebar.expander("LIQUIDITY RATIOS"):
-    st.write("---Measure the ability to meet current liabilities in the short term (Bigger = Better)---")
-    st.write('<span style="color: lightcoral;">Current Ratio: [Current Assets / Current Liabilities]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: Close to or over 1 = Good || Over 1 means the company is covering its bills due within a one "
-        "year period")
-    st.write(
-        '<span style="color: lightcoral;">Quick Ratio: [(Current Assets - Inventory) / Current Liabilities]</span>',
-        unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: Close to or over 1 = Good || Over 1 means the company is able to cover its bills due within a "
-        "one year period w/ liquid cash")
+            # Data Vars
+            stock_name = stock_metrics_df['Company Name'].values[0]
+            current_price = stock_metrics_df['Regular Market Price'].values[0]
+            current_pe = stock_metrics_df['PE Ratio'].values[0]
+            fiftytwo_week_range = stock_metrics_df['52-Week Range'].values[0]  # str (e.g., "88.00 - 180.00")
+            stock_grade = stock_grade_df.loc[stock_grade_df['Ticker'] == ticker, 'Grade'].values[0]
+            date_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Date_Added'].values[0]
+            price_when_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Price_When_Added'].values[0]
+            ind_avg_pe = industry_avg_df.loc[industry_avg_df['Industry'] == industry, 'Average P/E Ratio'].values[0]
 
-with st.sidebar.expander("ASSET MANAGEMENT RATIOS"):
-    st.write("---Measure how effectively assets are being managed---")
-    st.write('<span style="color: lightcoral;">Dividend Yield: [DPS / SP]</span>', unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: For low growth stocks, should be higher and should look for consistent div growth over time- "
-        "with signs of consistenly steady financials (able to pay debts consistently; want to see the company is "
-        "managing its money well) || For growth stocks, typically lower, but if a stock shows high growth over time "
-        "w/ a dividend yield that continues to remain the same or grow over time, this is a good sign (good to "
-        "compare with their Current Ratio)")
+            # Get Grade Colors
+            # Example: assuming stock_grade is a string like "A", "B+", "F", etc.
+            background_color, outline_color = gc.compare_performance(stock_grade)
 
-with st.sidebar.expander("DEBT MANAGEMENT RATIOS"):
-    st.write("---Measure how well debts are being managed---")
-    st.write('<span style="color: lightcoral;">Debt-to-Equity: [Total Liabilities / Total Shareholder Equity]</span>',
-             unsafe_allow_html=True)
-    st.write(
-        "Ratio Notes: A good D/E ratio will vary by sector & company. Typically a 1.0-1.5 ratio is ideal. The main "
-        "thing to look for is that if the company is leveraging debt is that it has enough liquidity and consistent "
-        "return to pay off those debts. Leveraging debt (when managed well) can be a good indicator that a growth "
-        "company is leveraging debt in order to re-invest and grow faster, which is typically a good sign that the "
-        "company is strategically well managed.")
+            # Create bordered container for each stock
+            with st.container(border=True):
+                # Create four columns for the card layout
+                col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
 
-with st.sidebar.expander("PERFORMANCE/RISK RATIOS"):
-    st.write("---Measures performance in the market against a certain benchmark---")
-    st.write('<span style="color: lightcoral;">Beta:</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: Beta measures the volatility of an investment relative to the overall market or benchmark "
-             "index. Beta > 1 = more volatile; Beta < 1 = less volatile.")
-    st.write('<span style="color: lightcoral;">Sharpe Ratio: [(Return - RFR) / SD of Returns]</span>', unsafe_allow_html=True)
-    st.write("Ratio Notes: Sharpe Ratio measures the level of adjusted-risk to return of an investment against the "
-             "current risk-free rate. The higher the ratio, the better overall return the asset provides against the "
-             "level of risk taken investing into the asset. A Sharpe Ratio > 1 = good; > 2 = very good.")
+                with col1:
+                    # create 2 cols within col
+                    subcol1, subcol2 = st.columns([2, 2])
+
+                    # with sub col1
+                    with subcol1:
+                        st.subheader(ticker)
+                        st.caption("Symbol")
+
+                    # Add CSS of grade to card in sub col2
+                    with subcol2:
+                        st.markdown(
+                            f"""
+                            <div style='text-align: left; padding-top: 10px;'>
+                                <div style="
+                                    display: inline-block;
+                                    padding: 20px;
+                                    border-radius: 8px;
+                                    font-weight: bold;
+                                    font-size: 18px;
+                                    color: white;
+                                    background-color: {background_color};
+                                    border: 2px solid {outline_color};
+                                ">
+                                    {stock_grade}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                    # Add remove button
+                    if st.button("Remove", key=f"remove_{ticker}"):  # give each button a key in loop
+                        data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
+                        st.rerun()  # refresh UI
+
+                kpi_height = 125
+
+                # Add kpi
+                with col2:
+                    with st.container(height=kpi_height):
+                        st.metric(
+                            label="Date Added",
+                            value=f"{date_added}",
+                            delta=None  # You can add price change here if available
+                        )
+
+                    # Divider
+                    st.markdown("---")
+
+                # Add kpi
+                with col3:
+
+                    # get delta
+                    col_3_price_delta = (current_price - price_when_added) / price_when_added
+                    col_3_price_delta = f"{col_3_price_delta:.0%}"  # format as percentage str
+
+                    with st.container(height=kpi_height):
+                        st.metric(
+                            label="Current Price",
+                            value=f"${current_price:.2f}",
+                            delta=f"{col_3_price_delta} from Added Date"
+                        )
+
+                    # Divider
+                    st.markdown("---")
+
+                # Add kpi
+                with col4:
+
+                    # get delta
+                    col_4_price_delta = current_pe - ind_avg_pe
+
+                    with st.container(height=kpi_height):
+                        st.metric(
+                            label="Current PE",
+                            value=f"{current_pe:.2f}",
+                            delta=f"{col_4_price_delta:.2f} from Industry Avg",
+                            delta_color="inverse"  # Invert the color logic
+                        )
+
+                    # Divider
+                    st.markdown("---")
+
+                # Add vertical divider
+                with col5:
+                    with st.container(height=kpi_height):
+                        st.metric(
+                            label="52-Week Range",
+                            value=f"{fiftytwo_week_range}",
+                            delta=None
+                        )
+
+                    # Divider
+                    st.markdown("---")
+
+                # Add expandable section for stock metrics
+                with st.expander(f"{stock_name} ({ticker}): Metric Summary", expanded=False):
+
+                    # Display metrics in a clean table
+                    st.dataframe(
+                        stock_metrics_df,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+        # exception handling
+        except Exception as e:
+            # Error handling for individual stocks
+            with st.container(border=True):
+                col1, col2, col3 = st.columns([1, 1, 3])
+                with col1:
+                    # Add remove button
+                    if st.button("Remove", key=f"error_remove_{ticker}"):  # give each button a key in loop
+                        data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
+                        st.rerun()  # refresh UI
+                with col2:
+                    st.subheader(ticker)
+                with col3:
+                    st.error(f"Unable to load data for {ticker}")
+else:
+    # Empty watchlist message
+    with st.container(border=True):
+        st.info("Watchlist is empty. Add some tickers to get started!")
