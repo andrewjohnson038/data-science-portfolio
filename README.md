@@ -49,23 +49,24 @@ batch scripting for retrieving weekly grades against custom grading model, and d
 
 1. **Batch Scripting**  
 
-- Leverages **AWS (S3, EC2, EventBridge Stack)** for data storage and batch scheduling. Custom grade models are pulled on a weekly batch.
+- Leverages **AWS** for data storage and Github Actions batch scheduling. Custom grade models are pulled on a weekly batch.
 - **S3** for data storage.
-- **EC2** for batch script hosting on virtual server.
-- **EventBridge Scheduler** to schedule batch script in EC2 with cron job.
+- **Github Actions** for batch schedule to host weekly cron job.
 
 2. **Data Wrangling & Visualization**  
    
-- **Pandas** for data wrangling between data prep and ETL for batch jobs.
+- **Pandas** and **NumPy** for data wrangling between data prep and ETL for batch jobs.
 - **Plotly & Matplotlib** for time series visualizations and visual trend tracing.
+- **Beautiful Soup** for web scraping.
+- **boto3** for AWS interfacing and data storage.
 
 3. **Data APIs**  
   
-- Utilizes **yfinance** & **Alpha Vantage** APIs for pulling in market data. Alpha Vantage is used as a back-up point if unreliable data elements pull through as null (e.g. yfinance lib not reliable for PEG ratio).
+- Utilizes **yfinance** & **Alpha Vantage** APIs for fetching market data. Alpha Vantage is used as a back-up point if unreliable data elements pull through as null (e.g. yfinance lib not reliable for PEG ratio).
 
 4. **Caching**  
   
-- Cached sets on ticker retrieved to reduce rendering times between page switches. 
+- Uses various cache timelines for sets of data depending on relevancy to market time (e.g. ticker metrics pulled during market hours more often compared to analyst recs being cached daily). 
   
 ➡ [Go to Project Directory](./stock_analysis_app)
 
