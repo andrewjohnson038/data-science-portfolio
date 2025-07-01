@@ -162,10 +162,10 @@ This application is for informational and educational purposes only and does not
 
 ## Performance Optimization
 
-The application implements caching strategies to optimize performance:
-- Data caching with 1-hour TTL
+The application implements caching and session state strategies to optimize performance:
+- Strategic Data Caching
 - Resource caching for expensive computations
-- Session state management for ticker changes
+- Session state management for ticker changes & various functionality
 
 
 ## License
