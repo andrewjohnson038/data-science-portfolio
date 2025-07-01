@@ -112,14 +112,19 @@ if not watchlist_df.empty:
             stock_name = stock_metrics_df['Company Name'].values[0]
             current_price = stock_metrics_df['Regular Market Price'].values[0]
             current_pe = stock_metrics_df['PE Ratio'].values[0]
-            fiftytwo_week_range = stock_metrics_df['52-Week Range'].values[0]  # str (e.g., "88.00 - 180.00")
+            current_roe = stock_metrics_df['ROE'].values[0]
+            # fiftytwo_week_range = stock_metrics_df['52-Week Range'].values[0]  # str (e.g., "88.00 - 180.00")
             stock_grade = stock_grade_df.loc[stock_grade_df['Ticker'] == ticker, 'Grade'].values[0]
             date_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Date_Added'].values[0]
             price_when_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Price_When_Added'].values[0]
             ind_avg_pe = industry_avg_df.loc[industry_avg_df['Industry'] == industry, 'Average P/E Ratio'].values[0]
+            ind_avg_roe = industry_avg_df.loc[industry_avg_df['Industry'] == industry, 'Average ROE'].values[0]
+
+            # Get days since added
+            date_added_dt = datetime.strptime(date_added, "%Y-%m-%d")  # convert from str to datetime
+            days_since_added = (dv.today - date_added_dt).days
 
             # Get Grade Colors
-            # Example: assuming stock_grade is a string like "A", "B+", "F", etc.
             background_color, outline_color = gc.compare_performance(stock_grade)
 
             # Create bordered container for each stock
@@ -136,11 +141,16 @@ if not watchlist_df.empty:
                         st.subheader(ticker)
                         st.caption("Symbol")
 
+                        # Add remove button
+                        if st.button("Remove", key=f"remove_{ticker}"):  # give each button a key in loop
+                            data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
+                            st.rerun()  # refresh UI
+
                     # Add CSS of grade to card in sub col2
                     with subcol2:
                         st.markdown(
                             f"""
-                            <div style='text-align: left; padding-top: 10px;'>
+                            <div style='text-align: left; padding-top: 10px; padding-bottom: 20px;'>
                                 <div style="
                                     display: inline-block;
                                     padding: 20px;
@@ -158,12 +168,7 @@ if not watchlist_df.empty:
                             unsafe_allow_html=True
                         )
 
-                    # Add remove button
-                    if st.button("Remove", key=f"remove_{ticker}"):  # give each button a key in loop
-                        data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
-                        st.rerun()  # refresh UI
-
-                kpi_height = 130
+                kpi_height = 130  # set reusable height
 
                 # Add kpi
                 with col2:
@@ -171,7 +176,7 @@ if not watchlist_df.empty:
                         st.metric(
                             label="Date Added",
                             value=f"{date_added}",
-                            delta=None  # You can add price change here if available
+                            delta=f"{days_since_added} Days Since Added"
                         )
 
                     # Divider
@@ -182,7 +187,7 @@ if not watchlist_df.empty:
 
                     # get delta
                     col_3_price_delta = (current_price - price_when_added) / price_when_added
-                    col_3_price_delta = f"{col_3_price_delta:.0%}"  # format as percentage str
+                    col_3_price_delta = f"{col_3_price_delta:.1%}"  # format as percentage str to 1 decimal
 
                     with st.container(height=kpi_height):
                         st.metric(
@@ -211,13 +216,17 @@ if not watchlist_df.empty:
                     # Divider
                     st.markdown("---")
 
-                # Add vertical divider
+                # Add kpi
                 with col5:
+
+                    # get delta
+                    col_5_price_delta = current_roe - ind_avg_roe
+
                     with st.container(height=kpi_height):
                         st.metric(
-                            label="52-Week Range",
-                            value=f"{fiftytwo_week_range}",
-                            delta=None
+                            label="Current ROE",
+                            value=f"{current_roe:.2f}",
+                            delta=f"{col_5_price_delta:.2f} from Industry Avg"
                         )
 
                     # Divider
@@ -226,9 +235,12 @@ if not watchlist_df.empty:
                 # Add expandable section for stock metrics
                 with st.expander(f"{stock_name} ({ticker}): Metric Summary", expanded=False):
 
+                    # pivot flattened table to show columns as metric and value
+                    pivoted_metrics_df = stock_metrics_df.melt(var_name="Metric", value_name="Value")
+
                     # Display metrics in a clean table
                     st.dataframe(
-                        stock_metrics_df,
+                        pivoted_metrics_df,
                         use_container_width=True,
                         hide_index=True,
                     )

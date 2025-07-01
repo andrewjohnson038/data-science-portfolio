@@ -15,6 +15,10 @@ Production Link: https://ajstockapp.streamlit.app
 - Industry comparisons
 - Interactive visualizations
 - AI-powered chatbot for stock analysis
+- Watchlist functionality
+- CI/CD
+- Automated data batching/ETL
+- Integration to AWS cloud storage
 
 ## Project Structure
 
@@ -24,6 +28,7 @@ stock_analysis_app/
 ├── page_home.py               # Home page with detailed stock analysis and metrics
 ├── page_grades.py             # Stock grading and comparison page
 ├── page_chatbot.py            # AI chatbot interface for stock analysis
+├── page_watchlist.py          # Watchlist page for chosen tickers
 ├── app_data.py                # Data fetching and processing utilities
 ├── app_constants.py           # Application constants and configurations
 ├── app_animations.py          # UI animations and styling
@@ -31,6 +36,7 @@ stock_analysis_app/
 ├── app_grade_batch.py         # Batch processing for stock grading
 ├── ticker_list_ref.csv        # Reference list of available stock tickers
 ├── requirements.txt           # Python package dependencies
+├── grade_model_assets.txt    # Contains model reference info
 ├── __init__.py               # Package initialization
 ├── __pycache__/              # Python cache directory
 └── .streamlit/               # Streamlit configuration directory
@@ -38,10 +44,10 @@ stock_analysis_app/
 
 ## Setup and Installation
 
-1. Clone the repository:
+1. Clone the repository (proj in sub dir, so cd to the sub dir):
 ```bash
 git clone [repository-url]
-cd data-science-portfolio
+cd data-science-portfolio/stock_analysis_app
 ```
 
 2. Create and activate a virtual environment (recommended):
@@ -57,7 +63,7 @@ pip install -r requirements.txt
 
 4. Run the application:
 ```bash
-streamlit run stock_analysis_app/app_main.py
+streamlit app_main.py
 ```
 
 ## Environment Variables
@@ -96,6 +102,9 @@ OPENAI_API_KEY=your_key_here
 - Performance metrics
 - Risk assessment
 
+### Watchlist Page (`page_watchlist.py`)
+- Watchlist page to track and monitor performance of flagged tickers
+
 ### Chatbot (`page_chatbot.py`)
 - AI-powered stock analysis
 - Natural language queries
@@ -107,6 +116,28 @@ OPENAI_API_KEY=your_key_here
 - Holds Grading Model used throughout app
 - Grades ticker based on pulled metrics and various simulations
 - Custom weight / grading scales (S-F)
+
+### Model Overview
+#### Grade Scale:
+
+![img.png](grade_model_assets/grade_scale.png)
+
+#### Model Methodology:
+
+![img.png](grade_model_assets/grade_model.png)
+
+##### Summary:
+
+The model uses an S-F grading scale, factoring in a mix of current metrics, comparisons to historical performance, and various simulations that are valued based on weightings to ultimately score the asset. The Model is geared towards growth equity stocks with intention to hold over mid-long term (6 months or longer). The weightings evaluate more strongly to resiliancy 
+and performance of the stock over mid to long-term growth as well as current operational and financial strength from a metrical standpoint. The model does not utilize specific institutional buy/sell trends but does also weight short term trends to slightly favor stocks that would be more-so at a buy indication based on its price and short term momentum. The model is 
+intended to serve as suplimentary information to make buy decisions with additional data provided within or outside of the app. 
+
+I personally use the grade model to skim down to stocks that, if having a higher grade, should overall be in good financial, operational, and risk position for the mid to LT as the model should weed out a high volume of stocks that don't 
+fall within the specific model range to be considered a higher-tier buy. I will then research the higher graded stocks metrics to and outer trends and if the stock is in good financial position and has growth potential. I then evaluate from a ST perspective (can utilize home page trends/simulations like the YOY MACD) to find out if the stock may be at a discount or a buy position within the current market.
+
+##### Disclaimer: 
+This application is for informational and educational purposes only and does not constitute financial, investment, or trading advice. Always do your own research or consult a qualified financial advisor before making any investment decisions.
+
 
 ### Grade Batch (`app_grade_batch.py`)
 - Batches grades and outputs into CSV
