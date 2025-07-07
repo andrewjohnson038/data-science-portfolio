@@ -11,14 +11,14 @@ from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
 from prophet import Prophet  # Import Prophet (META Time Series Model for Forecasting)
 import boto3  # AWS client
 from io import StringIO
-import time
 
 # Import app methods
 from stock_analysis_app.app_constants import DateVars
 from stock_analysis_app.app_constants import ALPHA_VANTAGE_API_KEY
 from stock_analysis_app.app_animations import CSSAnimations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
+import time as tm
 
 # Instantiate any imported classes here:
 dv = DateVars()
@@ -960,7 +960,7 @@ class AppData:
             message_container.info(f"Ticker '{ticker}' is already in the watchlist.")
 
         # Wait 1 second, then clear the message
-        time.sleep(2)
+        tm.sleep(2)
         message_container.empty()
 
     @staticmethod
