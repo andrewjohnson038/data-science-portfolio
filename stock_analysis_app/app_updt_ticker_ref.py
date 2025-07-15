@@ -1,4 +1,7 @@
 import pandas as pd
+import streamlit as st
+import boto3  # AWS client
+import io
 
 
 # Function to check filtered list of tickers from repo
@@ -37,14 +40,44 @@ tickers = filtered_tickers()
 
 
 # Function to update csv ref file in directory
-def update_ticker_list_csv(csv_path='ticker_list_ref.csv'):
-    """Update the reference CSV by removing obsolete tickers but preserving extra columns."""
+def update_ticker_list_csv(bucket_name='stock-ticker-data-bucket', csv_path='ticker_list_ref.csv'):
+    """Update the reference CSV by removing obsolete tickers but preserving extra columns.
+
+    Args:
+        bucket_name (str): S3 bucket name
+        csv_path (str): Path to CSV file in S3
+    """
+    # Load AWS credentials from Streamlit secrets
+    aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+    aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+    aws_region = st.secrets["AWS_REGION"]
+
+    # Create S3 client
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        region_name=aws_region,
+    )
 
     # --- Step 1: Load the current reference CSV ---
     try:
-        ref_df = pd.read_csv(csv_path)  # Read the existing CSV containing tickers and additional metadata
-    except FileNotFoundError:
-        print(f"File {csv_path} not found. Exiting update.")  # Handle case where file doesn't exist
+        # Get the CSV file from S3
+        response = s3.get_object(Bucket=bucket_name, Key=csv_path)
+        csv_content = response['Body'].read()
+
+        # Read CSV content into pandas DataFrame
+        ref_df = pd.read_csv(io.BytesIO(csv_content))
+        print(f"Successfully loaded {csv_path} from S3 bucket {bucket_name}")
+
+    # Catches the specific error when the file doesn't exist in S3
+    except s3.exceptions.NoSuchKey:
+        print(f"File {csv_path} not found in S3 bucket {bucket_name}. Exiting update.")
+        return
+
+    # Catches any other error that might occur during the S3 operation
+    except Exception as e:
+        print(f"Error reading {csv_path} from S3: {str(e)}")
         return
 
     # --- Step 2: Fetch NASDAQ and NYSE tickers from GitHub repo ---
@@ -67,14 +100,31 @@ def update_ticker_list_csv(csv_path='ticker_list_ref.csv'):
     # Keep only rows where the 'Ticker' value is still in the list of valid tickers
     updated_df = ref_df[ref_df['Ticker'].isin(valid_tickers)].copy()
 
-    # --- Step 4: Overwrite the CSV with the cleaned data ---
-    updated_df.to_csv(csv_path, index=False)  # Save the updated DataFrame back to the same CSV file
-    print(f"Updated {csv_path}: {len(ref_df)} → {len(updated_df)} tickers retained.")  # Log how many tickers were kept
+    # --- Step 4: Upload the cleaned data back to S3 ---
+    try:
+        # Convert DataFrame to CSV string
+        csv_buffer = io.StringIO()
+        updated_df.to_csv(csv_buffer, index=False)
+        csv_string = csv_buffer.getvalue()
 
+        # Upload the updated CSV back to S3
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=csv_path,
+            Body=csv_string,
+            ContentType='text/csv'
+        )
+
+        print(f"Updated {csv_path}: {len(ref_df)} → {len(updated_df)} tickers retained.")
+        print(f"Successfully uploaded updated CSV to S3 bucket {bucket_name}")
+
+    except Exception as e:
+        print(f"Error uploading updated CSV to S3: {str(e)}")
+        return
 
 # Run update:
 update_ticker_list_csv()
 
-
 # -------- Log -----------
 # last update: 2367 tickers (5/19/25)
+# Updated ticker_list_ref.csv: 2367 → 2343 tickers retained (7/14/25)

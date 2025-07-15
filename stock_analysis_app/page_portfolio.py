@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from datetime import datetime
 import boto3
+import plotly.express as px
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,39 +28,103 @@ gc = GradeColors()
 
 # Set data vars
 aws_bucket = 'stock-ticker-data-bucket'  # S3 bucket name
-wl_csv = 'ticker_watchlist.csv'  # name of object in S3 bucket
+pf_csv = 'portfolio_ticker_list.csv'  # name of object in S3 bucket
 
 
 # ---------------- SIDEBAR CONTENT: GET NOTES ----------------
 ec.get_sidebar_notes()
 
 
-# ---------------- SESSION STATE: SET WATCHLIST ----------------
+# ---------------- SESSION STATE: SET PORTFOLIO LIST ----------------
 # wrap grades_df in session state so data pull doesn't reload when navigating pages
-if "watchlist_df" not in st.session_state:
-    st.session_state["watchlist_df"] = data.load_csv_from_s3(aws_bucket, wl_csv)
+if "portfolio_df" not in st.session_state:
+    st.session_state["portfolio_df"] = data.load_csv_from_s3(aws_bucket, pf_csv)
 
 # assign to session state var
-watchlist_df = st.session_state["watchlist_df"]
+portfolio_df = st.session_state["portfolio_df"]
 
-# Check if the watchlist has been updated
-if st.session_state.get("watchlist_updated", False):
+# Check if the portfolio list has been updated
+if st.session_state.get("portfolio_updated", False):
     # Reload data
-    watchlist_df = data.load_csv_from_s3('stock-ticker-data-bucket', 'ticker_watchlist.csv')
+    portfolio_df = data.load_csv_from_s3(aws_bucket, pf_csv)
 
     # Reset the flag so it doesn't reload unnecessarily
-    st.session_state.watchlist_updated = False
+    st.session_state.portfolio_updated = False
 else:
     # Load once or from cache
-    watchlist_df = data.load_csv_from_s3('stock-ticker-data-bucket', 'ticker_watchlist.csv')
+    portfolio_df = data.load_csv_from_s3(aws_bucket, pf_csv)
 
+if portfolio_df.empty:
+
+    # Empty watchlist message
+    with st.container(border=False):
+        st.info("Portfolio is empty. Add some tickers to get started!")
+        st.stop()
+
+# ---------------- DATA: GET ADDITIONAL DATA ----------------
+
+# Get additional data if not empty
+else:
+    # Prepare containers for new columns
+    stock_names = []
+    current_prices = []
+
+    # Create cards for each stock
+    for index, row in portfolio_df.iterrows():
+        ticker = row['Ticker']  # ticker per looped ticker
+        industry = row['Industry']  # industry per looped ticker
+
+        # Get current stock data
+        try:
+            # Fetch stock data for the looped ticker
+            stock_metrics_df = data.load_curr_stock_metrics(ticker)
+
+            # Data Vars
+            stock_name = (
+                stock_metrics_df['Company Name'].values[0]
+                if 'Company Name' in stock_metrics_df.columns and not stock_metrics_df['Company Name'].empty
+                else "N/A"
+            )
+
+            current_price = (
+                stock_metrics_df['Regular Market Price'].values[0]
+                if 'Regular Market Price' in stock_metrics_df.columns and not stock_metrics_df['Regular Market Price'].empty
+                else None
+            )
+
+            # Add to lists
+            stock_names.append(stock_name)
+            current_prices.append(current_price)
+
+        # exception handling
+        except Exception as e:
+            # Error handling for individual stocks
+            st.error(f"Unable to load additional data for {ticker}")
+
+    # Update the portfolio DataFrame with new columns
+    portfolio_df['Stock_Name'] = stock_names
+    portfolio_df['Current_Price'] = current_prices
+
+    # Calculate total value at time of purchase
+    portfolio_df['Total_Value_When_Added'] = (portfolio_df['Price_When_Added'] * portfolio_df['Amount']).round(2)
+
+    # Calculate total current value
+    portfolio_df['Total_Current_Value'] = (portfolio_df['Current_Price'] * portfolio_df['Amount']).round(2)
+
+    # Calculate percentage change in value
+    portfolio_df['Value_%_Change'] = (
+            ((portfolio_df['Total_Current_Value'] - portfolio_df['Total_Value_When_Added']) / portfolio_df['Total_Value_When_Added']) * 100
+    ).round(2)
+
+    # Calculate total earnings (profit or loss in dollars)
+    portfolio_df['Total_Earnings'] = (portfolio_df['Total_Current_Value'] - portfolio_df['Total_Value_When_Added']).round(2)
 
 # ---------------- PAGE CONTENT: TITLE ----------------
 # Markdown title
 st.markdown(
     f"""
     <div style="display: flex; justify-content: center; align-items: center;">
-        <h1 style="font-size: 32px; margin: 0;">Watch List</h1>
+        <h1 style="font-size: 32px; margin: 0;">Portfolio</h1>
     </div>
     """,
     unsafe_allow_html=True
@@ -76,24 +141,102 @@ col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     # Ticker Search with session key
-    wl_ticker_search = st.text_input(
+    pf_ticker_search = st.text_input(
         "Search Ticker (e.g. AAPL)",
-        key="wl_ticker_search"  # key Uniquely identify and persist a widget’s value in st.session_state
+        key="pf_ticker_search"  # key Uniquely identify and persist a widget’s value in st.session_state
     )
 
-    if wl_ticker_search.strip():  # removes spaces
-        watchlist_df = watchlist_df[watchlist_df['Ticker'].str.contains(wl_ticker_search.strip(), case=False)]
+    if pf_ticker_search.strip():  # removes spaces
+        portfolio_df = portfolio_df[portfolio_df['Ticker'].str.contains(pf_ticker_search.strip(), case=False)]
 
 
-# ---------------- PAGE CONTENT: WATCHLIST CARDS ----------------
+# ---------------- PAGE CONTENT: PORTFOLIO SUMMARY ----------------
 # container title
-# st.write("Watchlist:")
+st.write("Portfolio Summary:")
 
-# Check if watchlist has data
-if not watchlist_df.empty:
+with st.container(border=True):
+
+    # Add columns to break up page spacing
+    col1, col2 = st.columns([1, 2])
+
+    # Pie Chart with Holdings
+    with col1:
+        # Create custom hover text (right aligned)
+        portfolio_df['Hover_Text'] = (
+                "Ticker: " + portfolio_df['Ticker'] + "<br>" +
+                "Shares: " + portfolio_df['Amount'].astype(str) + "<br>" +
+                "Total Value: $" + portfolio_df['Total_Current_Value'].round(2).astype(str) + "<br>" +
+                "Date Bought: " + portfolio_df['Date_Added']
+        )
+
+        # chart color sequence
+        colors = px.colors.qualitative.Set2
+
+        # Create pie chart
+        fig = px.pie(
+            portfolio_df,
+            names='Ticker',
+            values='Total_Current_Value',
+            custom_data=['Hover_Text'],
+            color_discrete_sequence=colors  # Apply red sequence
+        )
+
+        # Update tooltip
+        fig.update_traces(
+            hovertemplate='%{customdata[0]}<extra></extra>'
+        )
+        # %{customdata[0]} pulls the first item from the custom_data list
+        # In this case, it displays the 'hover_text' column content
+        # <extra></extra> removes the default "trace name" or legend info
+        # that would normally appear in the tooltip (e.g., "● TickerName")
+
+        # Display chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+    # DataFrame Summary
+    with col2:
+
+        st.write(" ")
+        st.write(" ")
+        st.write(" ")
+        st.write(" ")
+
+        # Reorder and rename columns for display
+        display_df = portfolio_df[[
+            'Ticker',
+            'Industry',
+            'Date_Added',
+            'Amount',
+            'Price_When_Added',
+            'Current_Price',
+            'Total_Current_Value',
+            'Value_%_Change'   # Add earnings percent here
+        ]].rename(columns={
+            'Amount': 'Shares',
+            'Price_When_Added': 'Buy Price',
+            'Current_Price': 'Current Price',
+            'Total_Current_Value': 'Total Share Value',
+            'Value_%_Change': 'Earnings %',
+            'Date_Added': 'Date Added'
+        })
+
+        # Sort display_df by 'Current Value' descending
+        display_df_sorted = display_df.sort_values(by='Total Share Value', ascending=False)
+
+        # Display sorted dataframe without index
+        st.dataframe(display_df_sorted, hide_index=True)
+
+
+# ---------------- PAGE CONTENT: PORTFOLIO LIST CARDS ----------------
+
+# Title
+st.write("Ticker Breakdown:")
+
+# Check if portfolio list has data
+if not portfolio_df.empty:
 
     # Create cards for each stock
-    for index, row in watchlist_df.iterrows():
+    for index, row in portfolio_df.iterrows():
         ticker = row['Ticker']  # ticker per looped ticker
         industry = row['Industry']  # industry per looped ticker
 
@@ -115,8 +258,8 @@ if not watchlist_df.empty:
             current_roe = stock_metrics_df['ROE'].values[0]
             # fiftytwo_week_range = stock_metrics_df['52-Week Range'].values[0]  # str (e.g., "88.00 - 180.00")
             stock_grade = stock_grade_df.loc[stock_grade_df['Ticker'] == ticker, 'Grade'].values[0]
-            date_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Date_Added'].values[0]
-            price_when_added = watchlist_df.loc[watchlist_df['Ticker'] == ticker, 'Price_When_Added'].values[0]
+            date_added = portfolio_df.loc[portfolio_df['Ticker'] == ticker, 'Date_Added'].values[0]
+            price_when_added = portfolio_df.loc[portfolio_df['Ticker'] == ticker, 'Price_When_Added'].values[0]
             ind_avg_pe = industry_avg_df.loc[industry_avg_df['Industry'] == industry, 'Average P/E Ratio'].values[0]
             ind_avg_roe = industry_avg_df.loc[industry_avg_df['Industry'] == industry, 'Average ROE'].values[0]
 
@@ -143,7 +286,7 @@ if not watchlist_df.empty:
 
                         # Add remove button
                         if st.button("Remove", key=f"remove_{ticker}"):  # give each button a key in loop
-                            data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
+                            data.remove_ticker_from_csv(ticker, aws_bucket, pf_csv)
                             st.rerun()  # refresh UI
 
                     # Add CSS of grade to card in sub col2
@@ -253,14 +396,9 @@ if not watchlist_df.empty:
                 with col1:
                     # Add remove button
                     if st.button("Remove", key=f"error_remove_{ticker}"):  # give each button a key in loop
-                        data.remove_ticker_from_csv(ticker, aws_bucket, wl_csv)
+                        data.remove_ticker_from_csv(ticker, aws_bucket, pf_csv)
                         st.rerun()  # refresh UI
                 with col2:
                     st.subheader(ticker)
                 with col3:
                     st.error(f"Unable to load data for {ticker}")
-else:
-    # Empty watchlist message
-    with st.container(border=False):
-        st.info("Watchlist is empty. Add some tickers to get started!")
-        st.stop()

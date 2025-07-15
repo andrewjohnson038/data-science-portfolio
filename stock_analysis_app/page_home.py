@@ -33,23 +33,18 @@ end_dt = dv.today
 
 
 # --------- additional data loaders
-# Cache data loading operations
-@st.cache_data(ttl=3600)  # 3600 = 1 hour cache
 def get_stock_data(selected_stock: str, st_dt, end_dt):
     return data.load_price_hist_data(selected_stock, st_dt, end_dt)
 
 
-@st.cache_data(ttl=3600)
 def get_stock_metrics(selected_stock: str):
     return data.load_curr_stock_metrics(selected_stock)
 
 
-@st.cache_data(ttl=3600)
 def get_analyst_data(selected_stock: str):
     return data.fetch_yf_analyst_price_targets(selected_stock), data.fetch_yf_analyst_recommendations(selected_stock)
 
 
-@st.cache_resource
 def get_forecast_data(price_history_df, forecast_years):
     return data.get_forecasted_data_df(price_history_df, forecast_years)
 
@@ -79,22 +74,65 @@ selected_stock = st.sidebar.selectbox(
 # Update session state to keep selected stock
 st.session_state.current_ticker = selected_stock
 
+# ---------------- SESSION STATE: SET WatchList & Portfolio Buttons ----------------
 
-# ---------------- SESSION STATE: SET WISHLIST BUTTON ----------------
-# Fetch stock data for the selected stock for wishlist button
-wl_selected_stock_metrics_df = get_stock_metrics(selected_stock)
+# ---------------- FETCH SHARED STOCK DATA ----------------
+# (Only need to call once if same function used)
+selected_stock_metrics_df = get_stock_metrics(selected_stock)
 
-# Get the price for when the stock was added
-wl_ss_price = wl_selected_stock_metrics_df['Regular Market Price'].values[0]
+# Extract shared values
+stock_price = selected_stock_metrics_df['Regular Market Price'].values[0]
+stock_industry = selected_stock_metrics_df['Industry'].values[0]
 
-# Get the industry for the stock
-wl_ss_industry = wl_selected_stock_metrics_df['Industry'].values[0]
+# ---------------- BUTTONS IN COLUMNS ----------------
+left_col, right_col, dummy = st.columns([1, 1, 6])
 
-# Add Ticker & Data to Watch List button
-if st.button("Add to Watch list"):
-    data.upsert_watchlist_to_s3_csv(selected_stock, wl_ss_industry, wl_ss_price, 'stock-ticker-data-bucket', 'ticker_watchlist.csv')
-    st.session_state.watchlist_updated = True
+with left_col:
+    # Add to Watch List
+    if st.button("Add to Watch list"):
+        data.upsert_watchlist_to_s3_csv(
+            selected_stock,
+            stock_industry,
+            stock_price,
+            'stock-ticker-data-bucket',
+            'ticker_watchlist.csv'
+        )
+        st.session_state.watchlist_updated = True
 
+with right_col:
+    # Show "Add to Portfolio" button only if not already in input mode
+    if not st.session_state.get("show_portfolio_list_amount_input", False):
+        if st.button("Add to Portfolio"):
+            st.session_state.show_portfolio_list_amount_input = True
+    # Show amount input and confirm button only if input mode is active
+    if st.session_state.get("show_portfolio_list_amount_input", False):
+        input_col, confirm_col = st.columns([1, 1])
+        with input_col:
+            amount = st.number_input(
+                "Shares",
+                min_value=0,
+                step=1,
+                key="portfolio_list_amount"
+            )
+        with confirm_col:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Add"):
+                if amount > 0:  # Only proceed if amount is valid
+                    data.upsert_ticker_to_s3_portfolio_csv(
+                        selected_stock,
+                        stock_industry,
+                        stock_price,
+                        amount,
+                        'stock-ticker-data-bucket',
+                        'portfolio_ticker_list.csv'
+                    )
+                    # Hide both inputs and buttons after confirming
+                    st.session_state.show_portfolio_list_amount_input = False
+                    st.session_state.portfolio_updated = True
+                    st.rerun()
+
+
+# ---------------- SIDEBAR CONTENT: Forecast Slider ----------------
 # Create an interactive year range slider and set our forecast range period:
 forecasted_year_range_slider = st.sidebar.slider("Choose a Forecast Range (Years):", 1,
                                                  10)  # creates a slider for forecast years. 1 and 10 are the year range
@@ -107,7 +145,8 @@ ec.get_sidebar_notes()
 # ---------------- PAGE CONTENT: RENDER MAIN SCREEN ----------------
 # wrap home page render based on ticker selected
 def render_home_page_data(selected_stock: str):
-    # ------------------------------------------ Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ---------------------------------------
+
+    # ------------------- Data: Load Ticker Volume/Pricing/Ratios (Historic & Current) ------------------------
 
     # Load the stock data based on the ticker selected in front end
     selected_stock_price_history_df = get_stock_data(selected_stock, st_dt, end_dt)
@@ -1003,7 +1042,7 @@ def render_home_page_data(selected_stock: str):
                                     margin: 0; 
                                     padding: 0;
                                     white-space: nowrap;
-                                '>${selected_stock_sma_percentage_difference:.2f}</div>
+                                '>${selected_stock_sma_price_difference:.2f}</div>
                                 <div style='
                                     background-color: {color}; 
                                     color: {text_color}; 
@@ -1141,22 +1180,33 @@ def render_home_page_data(selected_stock: str):
                         - <span style="color:lightcoral; font-weight:bold;">**RSI ≈ 50**</span> = Neutral State: The maximum expected loss for one month.
                         - <span style="color:lightcoral; font-weight:bold;">**RSI < 30**</span> = Likely Oversold (Buy Signal): The maximum expected loss for one year.
                 
-                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                        <span style="color:lightcoral; font-weight:bold;">**Example:**</span>
                         - If Meta's RSI is under 20, this indicates a more-extreme likelihood of market oversell compared to if the RSI were at 40, indicating market activity is in a neutral state.
                         """, unsafe_allow_html=True)
 
                     # SMA Tab
                     with tab2:
-                        st.markdown("""
-                        <span style="color:lightcoral; font-weight:bold;">**Simple Moving Average (SMA)**</span> is a statistical calculation that smooths the given range of price data to help identify price trends/cycles.
+                        st.markdown(""" 
+                        <span style="color:lightcoral; font-weight:bold;">**Simple Moving Average (SMA)**</span> is a statistical calculation that smooths the given range of price data to help identify price trends/cycles. Can leverage the long-term and short-term SMAs together as follows:
                         
-                        Can leverage the long-term and short-term SMAs together as follows:
-                        - <span style="color:lightcoral; font-weight:bold;">**200-Day SMA**</span> = Use as long-term trend indicator to benchmark against the 50-day SMA indicator.
-                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA > 200-Day SMA**</span> = ST Bullish Signal: Referred to as a "Golden Cross" - Indicates the price has trended above its LT SMA and has upward momentum.
-                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA < 200-Day SMA**</span> = ST Bearish Signal: Referred to as a "Death Cross" - Indicates the price has trended below its LT SMA and has downward momentum.
-                
-                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
+                        - <span style="color:lightcoral; font-weight:bold;">**200-Day SMA**</span> -> Use as long-term trend indicator to benchmark against the 50-day SMA indicator.
+                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA > 200-Day SMA**</span> -> ST Bullish Signal: Referred to as a "Golden Cross" - Indicates the price has trended above its LT SMA and has upward momentum.
+                        - <span style="color:lightcoral; font-weight:bold;">**50-Day SMA < 200-Day SMA**</span> -> ST Bearish Signal: Referred to as a "Death Cross" - Indicates the price has trended below its LT SMA and has downward momentum.
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Key Decision Points:**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**Buy Signal (Green)**</span> -> When 50-Day SMA crosses above 200-Day SMA (line turns green) + price is above both SMAs
+                        - <span style="color:lightcoral; font-weight:bold;">**Sell Signal (Red)**</span> -> When 50-Day SMA crosses below 200-Day SMA (line turns red) + price is below both SMAs
+                        - <span style="color:lightcoral; font-weight:bold;">**Support/Resistance**</span> -> Price often bounces off SMA lines - watch for rejections or breaks
+                        - <span style="color:lightcoral; font-weight:bold;">**Trend Strength**</span> -> Wider gap between SMAs = stronger trend; converging SMAs = weakening trend
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Position Sizing Indicator:**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**>5% Differential**</span> -> Strong bullish momentum (BUY signal)
+                        - <span style="color:lightcoral; font-weight:bold;">**<-5% Differential**</span> -> Strong bearish momentum (SELL signal)  
+                        - <span style="color:lightcoral; font-weight:bold;">**Between -5% & 5%**</span> -> Neutral momentum (HOLD signal)
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Example:**</span> 
                         - If the price is above both the 50-day and 200-day SMAs, but it drops and then finds support at the 50-day SMA, it could signal that the short-term trend remains intact.
+                        - Look for volume confirmation when SMAs cross - higher volume makes the signal more reliable.
                         """, unsafe_allow_html=True)
 
                     # MACD Tab
@@ -1164,14 +1214,37 @@ def render_home_page_data(selected_stock: str):
                         st.markdown("""
                         <span style="color:lightcoral; font-weight:bold;">**MACD (Moving Average Convergence Divergence)**</span> is a trend analysis indicator used to visualize momentum of a stock and buy/sell signals based on two staggered exponential moving averages (EMAs). The function in this application uses a 26-day EMA for the long and a 12-day EMA for the short trend line. The signal line uses a 9-day EMA which helps provide a clearer indication for buy/sell opportunity in the current short-term market state.
                         
-                        - <span style="color:lightcoral; font-weight:bold;">**MACD Line (Yellow)**</span> = The difference between the 12-day and 26-day EMA (12-Day EMA - 26-day EMA). A positive MACD value (e.g., +4) means the 12-day EMA is above the 26-day EMA, suggesting that an uptrend (bullish momentum) is currently present in the market. Conversely, if the 12-day is below the 26-day, this would indicate the ticker is in a downtrend (bearish momentum). The Y-axis is the variation in price between the two averages. The higher the number, the stronger the momentum.
+                        - <span style="color:lightcoral; font-weight:bold;">**MACD Line (Yellow)**</span> -> The difference between the 12-day and 26-day EMA (12-Day EMA - 26-day EMA). A positive MACD value (e.g., +4) means the 12-day EMA is above the 26-day EMA, suggesting that an uptrend (bullish momentum) is currently present in the market. Conversely, if the 12-day is below the 26-day, this would indicate the ticker is in a downtrend (bearish momentum). The Y-axis is the variation in price between the two averages. The higher the number, the stronger the momentum.
                          
-                        -> Note: You can also use the length of fluctuation as a benchmark to predict that the stock might be nearing a reversal in momentum (e.g. ticker typically caps at 4; if it is currently at a difference of 3, this could mean it may be near a reversal). So in theory, a good entry point would be when the stock is nearing the end of a downtrend and is gearing for reversal.
-                        - <span style="color:lightcoral; font-weight:bold;">**Signal Line (Red)**</span> = The 9-day signal line used as a benchmark against the MACD line. 
-                        - <span style="color:lightcoral; font-weight:bold;">**Histogram (Grey)**</span> = The histogram is used in addition to the MACD line to visually show when the ticker is indicating bullish vs bearish momentum by utilizing the Signal line against it. When the MACD line is above the Signal line, the histogram traces positive or above the 0-axis (bullish), and when the MACD line is below the Signal line, the histogram falls negative or below the 0-axis (bearish).
+                        <span style="color:lightcoral; font-weight:bold;">**Note:**</span> You can also use the length of fluctuation as a benchmark to predict that the stock might be nearing a reversal in momentum (e.g. ticker typically caps at 4; if it is currently at a difference of 3, this could mean it may be near a reversal). So in theory, a good entry point would be when the stock is nearing the end of a downtrend and is gearing for reversal.
+                        - <span style="color:lightcoral; font-weight:bold;">**Signal Line (Red)**</span> -> The 9-day signal line used as a benchmark against the MACD line. 
+                        - <span style="color:lightcoral; font-weight:bold;">**Histogram (Grey)**</span> -> The histogram is used in addition to the MACD line to visually show when the ticker is indicating bullish vs bearish momentum by utilizing the Signal line against it. When the MACD line is above the Signal line, the histogram traces positive or above the 0-axis (bullish), and when the MACD line is below the Signal line, the histogram falls negative or below the 0-axis (bearish).
                 
-                        <span style="color:lightcoral; font-weight:bold;">**Example**</span>:
-                        - If the Histogram is positive (MACD line is over the Signal line) and the ticker is peaking near its negative value cap (y-axis), this would indicate that the ticker is likely nearing or at reversal towards bullish momentum and may also be at a discount, thus indicating a short-term buy opportunity in the current market.
+                        <span style="color:lightcoral; font-weight:bold;">**What the Point Differential Actually Means**</span> <span style="color:white;">-></span> The MACD value represents the **actual dollar difference** between the 12-day and 26-day EMAs. If MACD shows +15, this means the 12-day EMA is literally $15 higher than the 26-day EMA in terms of stock price.
+    
+                        <span style="color:lightcoral; font-weight:bold;">**High-Priced Stocks (e.g., META at $500+):**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 20-30**</span> <span style="color:white;">-></span> Strong momentum - $20-30 price gap between EMAs indicates significant trend strength
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 10-20**</span> <span style="color:white;">-></span> Moderate momentum - $10-20 gap shows normal trending behavior  
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 0-10**</span> <span style="color:white;">-></span> Weak momentum - Small dollar gap indicates consolidation or sideways movement
+                        - <span style="color:lightcoral; font-weight:bold;">**Example**</span> <span style="color:white;">-></span> META showing MACD at +25 means the 12-day EMA is $25 above the 26-day EMA (very strong bullish momentum)
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Mid-Priced Stocks (e.g., AAPL at $180):**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 3-8**</span> <span style="color:white;">-></span> Strong momentum - $3-8 price gap is significant for this price level
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 1-3**</span> <span style="color:white;">-></span> Moderate momentum - $1-3 gap shows normal movement
+                        - <span style="color:lightcoral; font-weight:bold;">**Range 0-1**</span> <span style="color:white;">-></span> Weak momentum - Small dollar gap indicates weak trend
+                        - <span style="color:lightcoral; font-weight:bold;">**Example**</span> <span style="color:white;">-></span> AAPL showing MACD at +5 means the 12-day EMA is $5 above the 26-day EMA (strong bullish momentum for AAPL's price range)
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Key Decision Points:**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**Buy Signal**</span> <span style="color:white;">-></span> MACD line crosses above Signal line (histogram turns positive) + MACD is recovering from negative territory
+                        - <span style="color:lightcoral; font-weight:bold;">**Sell Signal**</span> <span style="color:white;">-></span> MACD line crosses below Signal line (histogram turns negative) + MACD is declining from positive territory
+                        - <span style="color:lightcoral; font-weight:bold;">**Momentum Strength**</span> <span style="color:white;">-></span> Higher absolute dollar values = stronger trends (but watch for exhaustion at historical extremes)
+                        - <span style="color:lightcoral; font-weight:bold;">**Divergence**</span> <span style="color:white;">-></span> Price making new highs while MACD makes lower highs = potential reversal warning
+                        
+                        <span style="color:lightcoral; font-weight:bold;">**Real-World Example - META:**</span>
+                        - <span style="color:lightcoral; font-weight:bold;">**Scenario**</span> <span style="color:white;">-></span> META trading at $520, MACD at +15, Signal line at +12, Histogram positive
+                        - <span style="color:lightcoral; font-weight:bold;">**Analysis**</span> <span style="color:white;">-></span> The $15 dollar gap between EMAs shows strong bullish momentum, MACD above Signal line confirms uptrend
+                        - <span style="color:lightcoral; font-weight:bold;">**Action**</span> <span style="color:white;">-></span> If META's historical MACD range is -30 to +30, current +15 shows moderate-strong bullish momentum with room to run
+                        - <span style="color:lightcoral; font-weight:bold;">**Warning**</span> <span style="color:white;">-></span> If MACD reaches +28 (near historical high), watch for potential reversal or consolidation
                         """, unsafe_allow_html=True)
 
             # Add Risk Section:
@@ -1434,33 +1507,152 @@ def render_home_page_data(selected_stock: str):
         # Write Analyst Grades to App
         with sh_g.container(border=True):
 
-            # ----------------- Yahoo Finance Grades
-            # Display the DataFrame in Streamlit
-            st.write("Year End Price Predictions:")
+            col1, col2 = st.columns([4,3])
 
-            # Check if DataFrame is valid and not empty
-            if selected_stock_analyst_targets_df is None or selected_stock_analyst_targets_df.empty:  # Use .empty to check if an empty df was returned and not just none
+            with col1:
+                # ----------------- Yahoo Finance Grades
+                # Display the DataFrame in Streamlit
+                st.write("Year End Price Predictions:")
+                with st.container(border=True):
+                    # Check if DataFrame is valid and not empty
+                    if selected_stock_analyst_targets_df is None or selected_stock_analyst_targets_df.empty:
+                        # Use .empty to check if an empty df was returned and not just none
+                        # Use Streamlit warning if no data is available
+                        st.warning(f"No analyst price targets available for {selected_stock}.")
+                    else:
+                        # Create a horizontal bar chart for price targets
+                        # Check if data has Metric/Value structure or direct columns
+                        if 'Metric' in selected_stock_analyst_targets_df.columns and 'Value' in selected_stock_analyst_targets_df.columns:
+                            # Convert Metric/Value structure to dictionary
+                            targets = dict(zip(selected_stock_analyst_targets_df['Metric'], selected_stock_analyst_targets_df['Value']))
+                        else:
+                            # Use direct column structure
+                            targets = selected_stock_analyst_targets_df.iloc[0]
 
-                # Use Streamlit warning if no data is available
-                st.warning(f"No analyst price targets available for {selected_stock}.")
+                        # Extract available price data
+                        price_data = []
+                        colors = []
 
-            # write df to app if not empty
-            else:
-                st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
+                        if 'current' in targets:
+                            price_data.append(('Current', float(targets['current'])))
+                            colors.append('#495057')
 
-            # ----------------- Agency Grades
-            # Display the DataFrame in Streamlit
-            st.write("Analyst Recommendations:")
+                        if 'low' in targets:
+                            price_data.append(('Low Target', float(targets['low'])))
+                            colors.append('#E74C3C')
 
-            # Check if DataFrame is valid and not empty
-            if selected_stock_analyst_recommendations_df is None or selected_stock_analyst_recommendations_df.empty:  # Use .empty to check if an empty df was returned and not just none
+                        if 'median' in targets:
+                            price_data.append(('Median Target', float(targets['median'])))
+                            colors.append('#DAA520')
 
-                # Use Streamlit warning if no data is available
-                st.warning(f"No analyst recommendation data available for {selected_stock}.")
+                        if 'high' in targets:
+                            price_data.append(('High Target', float(targets['high'])))
+                            colors.append('#27AE60')
 
-            # write df to app if not empty
-            else:
-                st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
+                            # Add metrics below the chart
+                            # if len(price_data) >= 2:
+                            #     metric_cols = st.columns(min(len(price_data), 4))
+                            #     for i, (label, value) in enumerate(price_data[:4]):
+                            #         with metric_cols[i]:
+                            #             # Calculate percentage change from current if available
+                            #             delta = None
+                            #             if 'current' in targets and label != 'Current':
+                            #                 pct_change = ((value - targets['current']) / targets['current']) * 100
+                            #                 delta = f"{pct_change:+.1f}%"
+                            #
+                            #             st.metric(label, f"${value:.2f}", delta=delta)
+                            # else:
+                            #     st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
+
+                            if price_data:
+                                # Create horizontal bar chart
+                                fig_bar = go.Figure()
+
+                                labels = [item[0] for item in price_data]
+                                values = [item[1] for item in price_data]
+
+                                fig_bar.add_trace(go.Bar(
+                                    x=values,
+                                    y=labels,
+                                    orientation='h',
+                                    marker_color=colors,
+                                    text=[f'${val:.2f}' for val in values],
+                                    textposition='auto'
+                                ))
+
+                                fig_bar.update_layout(
+                                    # title="Price Target Range",
+                                    xaxis_title="Price ($)",
+                                    height=400,
+                                    showlegend=False,
+                                    margin=dict(l=20, r=20, t=40, b=20)
+                                )
+
+                                # Add vertical line for current price if available
+                                if 'current' in targets:
+                                    fig_bar.add_vline(
+                                        x=targets['median'],
+                                        line_dash="dash",
+                                        line_color="#DAA520",  # yellow
+                                    )
+
+                                st.plotly_chart(fig_bar, use_container_width=True)
+                        else:
+                            st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
+
+            with col2:
+
+                # Widget Title
+                st.write("Analyst Recommendations:")
+                with st.container(border=True):
+                    # ----------------- Agency Grades
+                    # Check if DataFrame is valid and not empty
+                    if selected_stock_analyst_recommendations_df is None or selected_stock_analyst_recommendations_df.empty:
+                        st.warning(f"No analyst recommendation data available for {selected_stock}.")
+                    else:
+                        # Create a donut chart for recommendations
+                        if 'strongBuy' in selected_stock_analyst_recommendations_df.columns:
+                            recommendations = selected_stock_analyst_recommendations_df.iloc[0]
+
+                            labels = []
+                            values = []
+                            colors = ['#00CC96', '#00AA66', '#FFA500', '#FF6B6B', '#DC143C']
+
+                            rec_mapping = {
+                                'strongBuy': 'Strong Buy',
+                                'buy': 'Buy',
+                                'hold': 'Hold',
+                                'sell': 'Sell',
+                                'strongSell': 'Strong Sell'
+                            }
+
+                            for key, label in rec_mapping.items():
+                                if key in recommendations and recommendations[key] > 0:
+                                    labels.append(label)
+                                    values.append(recommendations[key])
+
+                            if labels and values:
+                                fig_donut = go.Figure(data=[go.Pie(
+                                    labels=labels,
+                                    values=values,
+                                    hole=0.4,
+                                    marker_colors=colors[:len(labels)],
+                                    textinfo='label+percent',
+                                    textposition='outside'
+                                )])
+
+                                fig_donut.update_layout(
+                                    showlegend=True,
+                                    height=400,
+                                    annotations=[dict(text=f'Total<br>{sum(values)}', x=0.5, y=0.5, font_size=20, showarrow=False)]
+                                )
+
+                                st.plotly_chart(fig_donut, use_container_width=True)
+
+                            else:
+                                st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
+                        else:
+                            st.dataframe(selected_stock_analyst_recommendations_df, hide_index=True, use_container_width=True)
 
 
 # ---------------- PAGE CONTENT: RUN MAIN SCREEN ----------------
