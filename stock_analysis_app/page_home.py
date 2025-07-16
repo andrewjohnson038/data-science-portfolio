@@ -85,51 +85,69 @@ stock_price = selected_stock_metrics_df['Regular Market Price'].values[0]
 stock_industry = selected_stock_metrics_df['Industry'].values[0]
 
 # ---------------- BUTTONS IN COLUMNS ----------------
-left_col, right_col, dummy = st.columns([1, 1, 6])
 
-with left_col:
-    # Add to Watch List
-    if st.button("Add to Watch list"):
-        data.upsert_watchlist_to_s3_csv(
-            selected_stock,
-            stock_industry,
-            stock_price,
-            'stock-ticker-data-bucket',
-            'ticker_watchlist.csv'
-        )
-        st.session_state.watchlist_updated = True
+add_con = st.container()
 
-with right_col:
-    # Show "Add to Portfolio" button only if not already in input mode
-    if not st.session_state.get("show_portfolio_list_amount_input", False):
-        if st.button("Add to Portfolio"):
-            st.session_state.show_portfolio_list_amount_input = True
-    # Show amount input and confirm button only if input mode is active
-    if st.session_state.get("show_portfolio_list_amount_input", False):
-        input_col, confirm_col = st.columns([1, 1])
-        with input_col:
-            amount = st.number_input(
-                "Shares",
-                min_value=0,
-                step=1,
-                key="portfolio_list_amount"
+with add_con:
+    left_col, right_col, dummy = st.columns([1, 1, 6])
+
+    with left_col:
+        # Add to Watch List
+        if st.button("Add to Watch list"):
+            data.upsert_watchlist_to_s3_csv(
+                selected_stock,
+                stock_industry,
+                stock_price,
+                'stock-ticker-data-bucket',
+                'ticker_watchlist.csv'
             )
-        with confirm_col:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Add"):
-                if amount > 0:  # Only proceed if amount is valid
-                    data.upsert_ticker_to_s3_portfolio_csv(
-                        selected_stock,
-                        stock_industry,
-                        stock_price,
-                        amount,
-                        'stock-ticker-data-bucket',
-                        'portfolio_ticker_list.csv'
-                    )
-                    # Hide both inputs and buttons after confirming
-                    st.session_state.show_portfolio_list_amount_input = False
-                    st.session_state.portfolio_updated = True
-                    st.rerun()
+            st.session_state.watchlist_updated = True
+
+    with right_col:
+        # Show "Add to Portfolio" button only if not already in input mode
+        if not st.session_state.get("show_portfolio_list_amount_input", False):
+            if st.button("Add to Portfolio"):
+                st.session_state.show_portfolio_list_amount_input = True
+
+        # Show amount input and confirm button only if input mode is active
+        if st.session_state.get("show_portfolio_list_amount_input", False):
+            input_col, confirm_col = st.columns([1, 1])
+
+            with input_col:
+                amount = st.number_input(
+                    "Shares",
+                    min_value=0,
+                    step=1,
+                    key="portfolio_list_amount"
+                )
+
+            with confirm_col:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Add"):
+                    if amount > 0:  # Only proceed if amount is valid
+                        # Store the action to be executed outside the column
+                        st.session_state.execute_portfolio_add = True
+                        st.session_state.portfolio_add_amount = amount
+
+        # Execute the portfolio addition outside of the columns for full width display
+        if st.session_state.get("execute_portfolio_add", False):
+            data.upsert_ticker_to_s3_portfolio_csv(
+                selected_stock,
+                stock_industry,
+                stock_price,
+                st.session_state.portfolio_add_amount,
+                'stock-ticker-data-bucket',
+                'portfolio_ticker_list.csv'
+            )
+
+            # Clean up session state
+            st.session_state.show_portfolio_list_amount_input = False
+            st.session_state.portfolio_updated = True
+            st.session_state.execute_portfolio_add = False
+            if 'portfolio_add_amount' in st.session_state:
+                del st.session_state.portfolio_add_amount
+
+            st.rerun()
 
 
 # ---------------- SIDEBAR CONTENT: Forecast Slider ----------------

@@ -1026,7 +1026,19 @@ class AppData:
             # Show success message temporarily
             message_container.success(f"{ticker} added to portfolio with {amount} shares.")
         else:
-            message_container.info(f"Ticker '{ticker}' is already in the watchlist.")
+            # Ticker exists - add to existing amount
+            ticker_index = df[df["Ticker"] == ticker].index[0]
+            current_amount = df.loc[ticker_index, "Amount"]
+            new_total_amount = current_amount + amount
+            df.loc[ticker_index, "Amount"] = new_total_amount
+
+            # Convert to CSV and upload
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False)
+            s3.put_object(Bucket=bucket_name, Key=csv_path, Body=csv_buffer.getvalue())  # upload new amount
+
+            # Show success message with added amount
+            message_container.success(f"{amount} more shares added to {ticker} holdings.")
 
         # Wait 1 second, then clear the message
         tm.sleep(2)
