@@ -1502,6 +1502,9 @@ def render_home_page_data(selected_stock: str):
 
     # ///////////////////////////////////////////////////////////// Stock Grades Tab //////////////////////////////////////////////////////////////////////////
 
+    # Create DataFrame from the dictionary
+    selected_stock_score_details_df = pd.DataFrame.from_dict(selected_stock_score_details, orient='index')
+
     with home_tab3:
         # Create container variable for the grades tab
         sh_g = st.container()
@@ -1512,12 +1515,95 @@ def render_home_page_data(selected_stock: str):
         # Write Analyst Grades to App
         with sh_g.container(border=True):
 
-            # Display the DataFrame in Streamlit
+            # Add KPIs at the top
+            total_score_row = selected_stock_score_details_df.loc["Total Score"]
+
+            # Display the stacked bar chart in Streamlit
+            st.write("Score Summary:")
+
+            with st.container():
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    with st.container(border=True):
+                        st.metric("Total Score Possible", f"{total_score_row['max']:.2f}")
+                with col2:
+                    with st.container(border=True):
+                        st.metric("Score Achieved", f"{total_score_row['score']:.2f}")
+
+            # Display the stacked bar chart in Streamlit
             st.write("Score Breakdown:")
 
-            selected_stock_score_details_df = pd.DataFrame.from_dict(selected_stock_score_details, orient='index')
+            with st.container(border=True):
 
-            st.dataframe(selected_stock_score_details_df)
+                # Prepare data for the bar chart with line overlay
+                chart_data = []
+
+                for index, row in selected_stock_score_details_df.iterrows():
+                    # Skip the "Total Score" and "Base Points" rows
+                    if index in ["Total Score", "Base Points"]:
+                        continue
+
+                    score = row['score']
+                    max_score = row['max']
+                    value = row['value']
+
+                    # Add data for the chart
+                    chart_data.append({
+                        'Metric': index,
+                        'Achieved Score': score,
+                        'Max Score': max_score,
+                        'Value': str(round(value, 2)) if isinstance(value, (int, float)) else str(value)
+                    })
+
+                # Create DataFrame for plotting and sort by max score (descending)
+                chart_df = pd.DataFrame(chart_data)
+                chart_df = chart_df.sort_values('Max Score', ascending=False)
+
+                # Create the combined bar and line chart using Plotly Graph Objects
+                fig = go.Figure()
+
+                # Add bar chart for achieved scores
+                fig.add_trace(go.Bar(
+                    x=chart_df['Metric'],
+                    y=chart_df['Achieved Score'],
+                    name='Achieved Score',
+                    marker_color='#2E8B57',  # Sea Green
+                    customdata=chart_df['Value'],
+                    hovertemplate='<b>%{x}</b><br>' +
+                                  'Achieved Score: %{y}<br>' +
+                                  'Value: %{customdata}<br>' +
+                                  '<extra></extra>'
+                ))
+
+                # Add line chart for max scores
+                fig.add_trace(go.Scatter(
+                    x=chart_df['Metric'],
+                    y=chart_df['Max Score'],
+                    mode='lines+markers',
+                    name='Max Possible',
+                    line=dict(color="#DAA520", width=3),  # Red line
+                    marker=dict(size=8, color="#DAA520"),
+                    hovertemplate='<b>%{x}</b><br>' +
+                                  'Max Possible: %{y}<br>' +
+                                  '<extra></extra>'
+                ))
+
+                # Update layout
+                fig.update_layout(
+                    # title='Score Breakdown by Metric',
+                    xaxis_title="Metrics",
+                    yaxis_title="Score",
+                    showlegend=True,
+                    height=400,
+                    hovermode='x unified'
+                )
+
+                # Rotate x-axis labels for better readability
+                fig.update_xaxes(tickangle=45)
+
+                # Display the chart
+                st.plotly_chart(fig, use_container_width=True)
 
         # Ticker Analyst #s Section
         sh_g.write("Yahoo Finance Analyst Summary:")
