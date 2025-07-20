@@ -4,6 +4,7 @@ from prophet.plot import plot_plotly  # Plotly package for plotting Prophet Mode
 from plotly import graph_objs as go  # Import plotly for time series visuals
 import pandas as pd  # Import Pandas for df / data wrangling
 import matplotlib.pyplot as plt  # Import MatPlotLib for Monte Carlo sim
+import seaborn as sns
 
 import sys
 import os
@@ -1518,20 +1519,97 @@ def render_home_page_data(selected_stock: str):
             # Add KPIs at the top
             total_score_row = selected_stock_score_details_df.loc["Total Score"]
 
+            # Multiply by 100 for viewing
+            total_score = total_score_row['score'] * 100
+            total_max_score = total_score_row['max'] * 100
+
             # Display the stacked bar chart in Streamlit
             st.write("Score Summary:")
 
             with st.container():
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns([2, 2, 6])
 
                 with col1:
-                    with st.container(border=True):
-                        st.metric("Total Score Possible", f"{total_score_row['max']:.2f}")
+                    with st.container(border=True, height=132):
+                        st.metric("Score Achieved", f"{total_score:.1f} / {total_max_score:.0f}")
                 with col2:
+                    with st.container(border=True, height=132):
+                        st.metric("Model Grade", f"{selected_stock_grade}")
+                with col3:
                     with st.container(border=True):
-                        st.metric("Score Achieved", f"{total_score_row['score']:.2f}")
+                        # Define grade order from best to worst
+                        grade_order = ['S', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F']
 
-            # Display the stacked bar chart in Streamlit
+                        # Reverse it so lowest grade (F) has 0
+                        grade_order_reversed = list(reversed(grade_order))
+
+                        # Create mapping
+                        grade_to_num = {grade: i for i, grade in enumerate(grade_order_reversed)}
+                        num_to_grade = {i: grade for grade, i in grade_to_num.items()}
+
+                        # Get grades from AWS
+                        grades_bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
+                        grades_csv_path = 'ticker_grades_output.csv'  # name of object in S3 bucket
+                        grades_df = data.load_csv_from_s3(grades_bucket_name, grades_csv_path)
+
+                        # Map grades in your DataFrame
+                        grades_df['grade_numeric'] = grades_df['Grade'].map(grade_to_num)
+
+                        # Get numeric value of select stock grade
+                        ss_grade_numeric = grade_to_num[selected_stock_grade]
+
+                        # Get current theme colors
+                        text_color = st.get_option("theme.textColor") or "#262730"
+                        background_color = st.get_option("theme.backgroundColor") or "#FFFFFF"
+                        primary_color = st.get_option("theme.primaryColor") or "#FF6B6B"
+
+                        # Create the plot with transparent background
+                        fig, ax = plt.subplots(figsize=(15, 1))
+                        fig.patch.set_facecolor(background_color)  # Set figure background to theme color
+                        ax.patch.set_facecolor(background_color)   # Set axes background to theme color
+
+                        # Set text colors to match theme
+                        ax.tick_params(colors=text_color)
+                        ax.xaxis.label.set_color(text_color)
+                        ax.yaxis.label.set_color(text_color)
+                        ax.title.set_color(text_color)
+
+                        # Create horizontal box plot with theme-aware colors
+                        box_plot = sns.boxplot(
+                            x=grades_df['grade_numeric'],
+                            ax=ax,
+                            color=primary_color,
+                            fliersize=3,
+                            orient='h'
+                        )
+
+                        # Add a vertical yellow line for selected stock's grade
+                        ax.axvline(ss_grade_numeric, color='#FFFF99', linestyle='--', linewidth=2,
+                                   label=f'Selected Stock')
+
+                        # Set up the x-axis
+                        ax.set_xticks(range(len(grade_order)))
+                        ax.set_xticklabels(grade_order_reversed)  # Use reversed order for proper display
+                        ax.set_xlabel("Stock Grades")
+                        ax.set_ylabel("")
+
+                        # Remove y-axis ticks since we don't need them
+                        ax.set_yticks([])
+
+                        # Add title
+                        ax.set_title("Grade Distribution of All Stocks", fontsize=12, pad=20)
+
+                        # Add legend with theme colors
+                        legend = ax.legend(loc='upper right', fontsize='small')
+                        legend.get_frame().set_facecolor('none')
+                        legend.get_frame().set_alpha(0)
+                        for text in legend.get_texts():
+                            text.set_color(text_color)
+
+                        # Display the plot
+                        st.pyplot(fig)
+
+            # Show bar chart against max possible scores
             st.write("Score Breakdown:")
 
             with st.container(border=True):
@@ -1539,6 +1617,7 @@ def render_home_page_data(selected_stock: str):
                 # Prepare data for the bar chart with line overlay
                 chart_data = []
 
+                # loop through each metric
                 for index, row in selected_stock_score_details_df.iterrows():
                     # Skip the "Total Score" and "Base Points" rows
                     if index in ["Total Score", "Base Points"]:
@@ -1582,7 +1661,7 @@ def render_home_page_data(selected_stock: str):
                     y=chart_df['Max Score'],
                     mode='lines+markers',
                     name='Max Possible',
-                    line=dict(color="#DAA520", width=3),  # Red line
+                    line=dict(color="#DAA520", width=3),  # Yellow line
                     marker=dict(size=8, color="#DAA520"),
                     hovertemplate='<b>%{x}</b><br>' +
                                   'Max Possible: %{y}<br>' +
