@@ -1578,13 +1578,13 @@ def render_home_page_data(selected_stock: str):
                         box_plot = sns.boxplot(
                             x=grades_df['grade_numeric'],
                             ax=ax,
-                            color=primary_color,
+                            color='#FFCCCC',  # salmon
                             fliersize=3,
                             orient='h'
                         )
 
                         # Add a vertical yellow line for selected stock's grade
-                        ax.axvline(ss_grade_numeric, color='#FFFF99', linestyle='--', linewidth=2,
+                        ax.axvline(ss_grade_numeric, color='#DAA520', linestyle='--', linewidth=2,
                                    label=f'Selected Stock')
 
                         # Set up the x-axis
