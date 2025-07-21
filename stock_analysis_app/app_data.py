@@ -227,6 +227,76 @@ class AppData:
         pe_ratio = stock_info.get('trailingPE', None)
         peg_ratio = stock_info.get('pegRatio', None)
 
+        # Function to manually calculate PEG ratio using PE and EPS growth
+        def calculate_peg_manually(ticker):
+            """
+            Manually calculate PEG ratio if not available from Yahoo Finance
+            PEG = PE Ratio / EPS Growth Rate (%)
+            """
+            try:
+                # Create ticker object and get info
+                ticker_obj = yf.Ticker(ticker)
+                stock_info = ticker_obj.info
+
+                # Get current PE ratio
+                pe_ratio
+
+                if not pe_ratio:
+                    return None
+
+                # Method 1: Use earnings growth estimate if available
+                earnings_growth = stock_info.get('earningsGrowth')
+                if earnings_growth and earnings_growth > 0:
+                    # Convert to percentage and calculate PEG
+                    eps_growth_rate = earnings_growth * 100
+                    return pe_ratio / eps_growth_rate
+
+                # Method 2: Calculate from historical financials if growth estimate not available
+                try:
+                    financials = ticker_obj.financials
+
+                    if 'Basic EPS' in financials.index:
+                        eps_data = financials.loc['Basic EPS'].dropna()
+
+                        if len(eps_data) >= 2:
+                            # Calculate annual growth rate
+                            years = len(eps_data) - 1
+                            oldest_eps = eps_data.iloc[-1]  # Oldest data
+                            newest_eps = eps_data.iloc[0]   # Most recent data
+
+                            # Calculate compound annual growth rate (CAGR)
+                            if oldest_eps > 0:
+                                eps_cagr = ((newest_eps / oldest_eps) ** (1/years) - 1) * 100
+
+                                if eps_cagr > 0:  # Only calculate PEG if growth is positive
+                                    return pe_ratio / eps_cagr
+                except:
+                    pass
+
+                # Method 3: Use quarterly EPS data as last resort
+                try:
+                    quarterly = ticker_obj.quarterly_financials
+                    if 'Basic EPS' in quarterly.index:
+                        quarterly_eps = quarterly.loc['Basic EPS'].dropna()
+
+                        if len(quarterly_eps) >= 8:  # Need at least 8 quarters
+                            # Compare most recent 4 quarters vs previous 4 quarters
+                            recent_4q_eps = quarterly_eps.iloc[:4].sum()
+                            previous_4q_eps = quarterly_eps.iloc[4:8].sum()
+
+                            if previous_4q_eps > 0:
+                                quarterly_growth = ((recent_4q_eps / previous_4q_eps) - 1) * 100
+
+                                if quarterly_growth > 0:
+                                    return pe_ratio / quarterly_growth
+                except:
+                    pass
+
+                return None
+
+            except Exception as e:
+                return None
+
         # Function to get PEG ratio from Alpha Vantage (Usually missing from yfinance)
         def get_peg_from_alpha_vantage(ticker):
             url = "https://www.alphavantage.co/query"
@@ -240,6 +310,12 @@ class AppData:
             data = response.json()
 
             return data.get("PEGRatio", None)
+
+        # If PEG ratio is missing, try to calculate it manually first
+        if peg_ratio is None:
+            peg_ratio = calculate_peg_manually(ticker)
+            if peg_ratio is not None:
+                peg_ratio = round(peg_ratio, 2)
 
         # If PEG ratio is missing, pull it from Alpha Vantage
         if peg_ratio is None:
