@@ -952,7 +952,6 @@ def app_home_page():
             options=list(EMAILS.keys()),
             default=[name for name, email in EMAILS.items() if email in st.session_state.selected_emails],
             placeholder="Select Brightsiders driving a route today",
-            key="team_member_selector_step1"
         )
 
         # Update session state only when Continue is clicked
