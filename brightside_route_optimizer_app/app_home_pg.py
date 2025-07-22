@@ -18,6 +18,10 @@ import concurrent.futures
 import boto3
 from io import StringIO
 
+# Create logs directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
 # Configure basic logging for warnings and errors only
 logging.basicConfig(
     level=logging.WARNING,
@@ -25,6 +29,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
 
 # Initialize all session state variables
 def initialize_session_state():
@@ -942,16 +947,13 @@ def app_home_page():
         st.header("Step 1: Select Team Members")
         st.write("Choose the team members who will be running routes.")
 
-        # Initialize selected_emails in session state if not present
-        if 'selected_emails' not in st.session_state:
-            st.session_state.selected_emails = []
-
         # Use a unique key for this specific instance of the multiselect
         selected_names = st.multiselect(
             "Select Team Members:",
             options=list(EMAILS.keys()),
             default=[name for name, email in EMAILS.items() if email in st.session_state.selected_emails],
             placeholder="Select Brightsiders driving a route today",
+            key="step1"
         )
 
         # Update session state only when Continue is clicked
