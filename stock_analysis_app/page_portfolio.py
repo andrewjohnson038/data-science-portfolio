@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 import boto3
 import plotly.express as px
+from plotly import graph_objs as go  # Import plotly for time series visuals
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -196,10 +197,7 @@ with st.container(border=True):
     # DataFrame Summary
     with col2:
 
-        st.write(" ")
-        st.write(" ")
-        st.write(" ")
-        st.write(" ")
+        st.write("")
 
         # Reorder and rename columns for display
         display_df = portfolio_df[[
@@ -219,6 +217,94 @@ with st.container(border=True):
             'Value_%_Change': 'Earnings %',
             'Date_Added': 'Date Added'
         })
+
+        # Calculate totals for the portfolio
+        total_shares = portfolio_df['Amount'].sum()
+        total_current_value = portfolio_df['Total_Current_Value'].sum()
+        total_original_value = (portfolio_df['Amount'] * portfolio_df['Price_When_Added']).sum()
+        overall_earnings_percent = ((total_current_value - total_original_value) / total_original_value) * 100
+        total_earnings_dollar = total_current_value - total_original_value
+
+        # Create three equal columns for metrics
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            with st.container(border=True, height=127):
+                st.metric(
+                    label="Total Portfolio Value",
+                    value=f"${total_current_value:,.2f}",
+                    delta=f"{overall_earnings_percent:.2f}%",
+                )
+
+        with col2:
+            with st.container(border=True, height=127):
+                # Calculate the total gain/loss for the entire portfolio
+                total_gain_loss = total_current_value - total_original_value
+
+                # Create a simple timeline based on dates in your portfolio
+                dates = sorted(portfolio_df['Date_Added'].unique())
+
+                # For each date, calculate cumulative investment and current value
+                timeline_data = []
+                for date in dates:
+                    # Get all investments up to this date
+                    investments_to_date = portfolio_df[portfolio_df['Date_Added'] <= date]
+
+                    # Calculate original investment to this date
+                    original_to_date = (investments_to_date['Amount'] * investments_to_date['Price_When_Added']).sum()
+
+                    # Calculate current value to this date
+                    current_to_date = investments_to_date['Total_Current_Value'].sum()
+
+                    # Calculate gain/loss
+                    gain_loss = current_to_date - original_to_date
+
+                    timeline_data.append({
+                        'Date': date,
+                        'Gain_Loss': gain_loss
+                    })
+
+                timeline_df = pd.DataFrame(timeline_data)
+
+                # Determine trend direction based on final gain/loss
+                trend_direction = "up" if timeline_df['Gain_Loss'].iloc[-1] > 0 else "down"
+                trend_color = 'rgba(0, 177, 64, .8)' if trend_direction == "up" else 'rgba(244, 67, 54, 0.8)'
+                trend_fill = 'rgba(0, 177, 64, 0.2)' if trend_direction == "up" else 'rgba(244, 67, 54, 0.2)'
+
+                def plot_portfolio_growth():
+                    fig = go.Figure()
+
+                    fig.add_trace(go.Scatter(
+                        x=timeline_df['Date'],
+                        y=timeline_df['Gain_Loss'],
+                        name='Portfolio Gain/Loss',
+                        fill='tozeroy',
+                        line=dict(color=trend_color),
+                        fillcolor=trend_fill
+                    ))
+
+                    fig.layout.update(
+                        template='plotly_white',
+                        height=105,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        xaxis=dict(
+                            showgrid=False,
+                            showticklabels=False,
+                            zeroline=False
+                        ),
+                        yaxis=dict(
+                            showgrid=False,
+                            showticklabels=True,
+                            zeroline=True
+                        ),
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+                plot_portfolio_growth()
+
+        st.write("---")
 
         # Sort display_df by 'Current Value' descending
         display_df_sorted = display_df.sort_values(by='Total Share Value', ascending=False)
