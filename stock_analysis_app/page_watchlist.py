@@ -143,7 +143,7 @@ if not watchlist_df.empty:
 
                         # Add remove button
                         if st.button("Remove", key=f"remove_{ticker}"):  # give each button a key in loop
-                            data.remove_from_watchlist(ticker, aws_bucket, wl_csv)
+                            data.remove_ticker_from_csv(ticker, aws_bucket, wl_csv)
                             st.rerun()  # refresh UI
 
                     # Add CSS of grade to card in sub col2
@@ -168,7 +168,7 @@ if not watchlist_df.empty:
                             unsafe_allow_html=True
                         )
 
-                kpi_height = 130  # set reusable height
+                kpi_height = 135  # set reusable height
 
                 # Add kpi
                 with col2:

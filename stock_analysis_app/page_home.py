@@ -1407,10 +1407,49 @@ def render_home_page_data(selected_stock: str):
                     """, unsafe_allow_html=True)
 
             st.write("Industry Averages:")
-            with sh_c.container(border=True):
+            with sh_c.container(border=False):
                 # Add DF with industry averages
                 if not industry_avg_df.empty:
-                    st.dataframe(industry_avg_df, hide_index=True, use_container_width=True)
+                    try:
+                        # st.dataframe(industry_avg_df, hide_index=True, use_container_width=True)
+
+                        # Get industry avg df
+                        ind_avg_pe = industry_avg_df.loc[industry_avg_df['Industry'] == selected_stock_industry, 'Average P/E Ratio'].values[0]
+                        ind_avg_roe = industry_avg_df.loc[industry_avg_df['Industry'] == selected_stock_industry, 'Average ROE'].values[0]
+
+                        # Create four columns for the card layout
+                        col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
+
+                        kpi_height = 133  # set reusable height
+
+                        # Add kpi
+                        with col1:
+
+                            # get delta
+                            col_4_price_delta = selected_stock_pe_ratio - ind_avg_pe
+
+                            with st.container(height=kpi_height):
+                                st.metric(
+                                    label="Current PE",
+                                    value=f"{selected_stock_pe_ratio:.2f}",
+                                    delta=f"{col_4_price_delta:.2f} from Industry Avg",
+                                    delta_color="inverse"  # Invert the color logic
+                                )
+
+                        # Add kpi
+                        with col2:
+
+                            # get delta
+                            col_5_price_delta = selected_stock_roe - ind_avg_roe
+
+                            with st.container(height=kpi_height):
+                                st.metric(
+                                    label="Current ROE",
+                                    value=f"{selected_stock_roe:.2f}",
+                                    delta=f"{col_5_price_delta:.2f} from Industry Avg"
+                                )
+                    except:
+                        st.warning(f"Industry Average Not Available:(")
 
     # ///////////////////////////////////////////////////////////// Forecast Tab //////////////////////////////////////////////////////////////////////////
 
@@ -1428,7 +1467,7 @@ def render_home_page_data(selected_stock: str):
             fs_c_col1.write("Forecast Graph:")
 
             # Write Forecast Graph Container in col1:
-            fs_graph_c = fs_c_col1.container(border=True)
+            fs_graph_c = fs_c_col1.container(border=True, height=635)
             with fs_graph_c:
                 # Plot the forecasted future data using the prophet model within a forecasted visual:
                 fig1 = plot_plotly(selected_stock_trained_model,
@@ -1481,7 +1520,7 @@ def render_home_page_data(selected_stock: str):
             fs_c_col2.write("Forecast Components:")
 
             # Write Forecast Components Container in col2
-            fs_components_c = fs_c_col2.container(border=True, height=456)
+            fs_components_c = fs_c_col2.container(border=True, height=454)
             with fs_components_c:
                 # Plot the Prophet forecast components:
                 fig2 = selected_stock_trained_model.plot_components(
