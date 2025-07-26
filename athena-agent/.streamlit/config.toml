@@ -1,0 +1,17 @@
+[theme]
+# Soft purple for interactive elements
+primaryColor = "#a070f7"
+# Deep purple-gray background
+backgroundColor = "#2c2238"
+# Slightly lighter container background
+secondaryBackgroundColor = "#3b2d4f"
+# Light lavender text for high contrast
+textColor = "#f3e9ff"
+# Clean font
+font = "sans serif"
+
+[server]
+# Prevents other websites from making requests to this app
+enableCORS = true
+# Adds security tokens to forms to prevent unauthorized access
+enableXsrfProtection = true
