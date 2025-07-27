@@ -66,7 +66,7 @@ batch scripting for retrieving weekly grades against custom grading model, and d
 
 4. **Caching**  
   
-- Uses various cache timelines for sets of data depending on relevancy to market time (e.g. ticker metrics pulled during market hours more often compared to analyst recs being cached daily). 
+- Uses various cache timelines for sets of data depending on relevancy to market time (e.g. ticker metrics pulled during market hours more often compared to analyst recs being cached daily).  
   
 ➡ [Go to Project Directory](./stock_analysis_app)
 
@@ -124,6 +124,36 @@ This subdirectory contains the **Python scripts** used to clean, transform, and 
 The datasets utilized are either pulled from Kaggle or were generated with AI.
 
 ➡ [Go to Project Directory](./bi-portfolio)
+
+---
+
+### 4. [Athena-Agent App](./athena-agent)
+
+A Streamlit-based AI agent interface that allows users to query AWS Athena databases using natural language. The agent leverages AWS Bedrock (Meta Llama 3) for secure, enterprise-level AI interactions, converting natural language questions into SQL queries, executing them against Athena, and providing results with visualizations.
+
+---
+
+#### Analysis & Engineering Techniques Used
+
+- **Natural Language to SQL (NL2SQL)**
+  - Uses prompt-based LLM (Meta Llama 3 via AWS Bedrock) to convert user questions into SQL queries.
+  - Schema and business rules are provided in the system prompt for accurate query generation.
+
+- **Real-Time Query Execution**
+  - Generated SQL is executed directly against AWS Athena.
+  - Results are returned to the user with explanations and visualizations.
+
+- **Interactive Visualizations**
+  - Automatic chart generation based on query results using Plotly.
+
+- **Enterprise Security**
+  - Uses IAM roles and AWS best practices for secure access.
+  - Credentials and configuration managed via Streamlit secrets or config file.
+
+- **Debug & Data Utilities**
+  - Includes tools for generating sample data, loading CSVs to Athena, and testing Bedrock/Athena connectivity.
+
+➡ [Go to Project Directory](./athena-agent)
 
 ---
 
