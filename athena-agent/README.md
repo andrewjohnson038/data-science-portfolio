@@ -339,7 +339,3 @@ For issues and questions:
 1. Check the troubleshooting section
 2. Review AWS documentation
 3. Open an issue in the repository
-
-## Version History
-
-- **v1.0.0**: Initial release with Bedrock and Athena integration
