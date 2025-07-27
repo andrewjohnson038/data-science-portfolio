@@ -343,5 +343,3 @@ For issues and questions:
 ## Version History
 
 - **v1.0.0**: Initial release with Bedrock and Athena integration
-- **v1.1.0**: Added visualization capabilities
-- **v1.2.0**: Enhanced error handling and debugging tools 
