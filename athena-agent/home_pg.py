@@ -35,9 +35,14 @@ def home_pg():
         st.error(f"Failed to initialize agent. Please check your AWS configuration: {str(e)}")
         return
 
-    # Initialize chat history
+    # Initialize chat history with Ari's greeting
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "Hi! I'm Ari, your AI-powered SQL assistant. What data would you like me to retrieve for you?"
+            }
+        ]
 
     # Display chat messages
     for message in st.session_state.messages:
@@ -136,16 +141,25 @@ def home_pg():
                     "original_question": prompt
                 })
 
-    # Create a horizontal row just above the chat input
-    col1, col2 = st.columns([4, 1])
+    # Show clear chat button only if there are user messages (more than just the initial greeting)
+    user_messages = [msg for msg in st.session_state.messages if msg["role"] == "user"]
+    if user_messages:
+        # Create a horizontal row just above the chat input
+        col1, col2 = st.columns([4, 1])
 
-    with col1:
-        st.write(" ")
+        with col1:
+            st.write(" ")
 
-    with col2:
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.rerun()
+        with col2:
+            if st.button("🗑️ Clear Chat", use_container_width=True):
+                # Reset to initial state with Ari's greeting
+                st.session_state.messages = [
+                    {
+                        "role": "assistant",
+                        "content": "Hi! I'm Ari, your AI-powered SQL assistant. What data would you like me to retrieve for you?"
+                    }
+                ]
+                st.rerun()
 
     # Sidebar with information
     with st.sidebar:
