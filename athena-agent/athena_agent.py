@@ -7,6 +7,7 @@ import time
 from typing import Tuple
 import config
 import streamlit as st
+import plotly.express as px
 
 
 class AthenaChatbotAgent:
@@ -221,32 +222,34 @@ class AthenaChatbotAgent:
                 cat_col = categorical_cols[0]
                 num_col = numeric_cols[0]
 
-                # METHOD 1: Try horizontal bar chart
+                # # METHOD 1: Try horizontal bar chart
+                # try:
+                #     chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)  # order desc
+                #     st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
+                #     st.bar_chart(chart_data, horizontal=True, height=400)
+                # except Exception as e:
+                #     st.error(f"Horizontal bar chart failed: {e}")
+                #
+                #     # METHOD 2: Try regular bar chart
+                #     try:
+                #         chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)
+                #         st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
+                #         st.bar_chart(chart_data, height=400)
+                #     except Exception as e2:
+                #         st.error(f"Regular bar chart failed: {e2}")
+
+                # METHOD 3: Use Plotly as backup
                 try:
-                    chart_data = df.set_index(cat_col)[num_col]
-                    st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
-                    st.bar_chart(chart_data, horizontal=True, height=400)
-                except Exception as e:
-                    st.error(f"Horizontal bar chart failed: {e}")
 
-                    # METHOD 2: Try regular bar chart
-                    try:
-                        chart_data = df.set_index(cat_col)[num_col]
-                        st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
-                        st.bar_chart(chart_data, height=400)
-                    except Exception as e2:
-                        st.error(f"Regular bar chart failed: {e2}")
+                    # Sort the DataFrame by the numeric column in descending order
+                    df_sorted = df.sort_values(by=num_col, ascending=True)
 
-                        # METHOD 3: Use Plotly as backup
-                        try:
-                            import plotly.express as px
-                            fig = px.bar(df, x=num_col, y=cat_col, orientation='h',
-                                         title=f"{num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}")
-                            st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
-                            st.plotly_chart(fig, use_container_width=True)
-                        except Exception as e3:
-                            st.error(f"All chart methods failed: {e3}")
-                            st.dataframe(df, use_container_width=True)
+                    fig = px.bar(df_sorted, x=num_col, y=cat_col, orientation='h',
+                                 title=f"{num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}")
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e3:
+                    st.error(f"All chart methods failed: {e3}")
+                    st.dataframe(df, use_container_width=True)
 
                 return
 
@@ -256,7 +259,7 @@ class AthenaChatbotAgent:
             num_col = numeric_cols[0]
 
             try:
-                chart_data = df.set_index(cat_col)[num_col]
+                chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)
                 st.bar_chart(chart_data, height=400)
                 st.caption(f"📊 {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}")
             except Exception as e:

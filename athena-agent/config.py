@@ -123,9 +123,9 @@ Return response as JSON with:
 {
   "sql_query": "valid SQL query",
   "explanation": "brief explanation of the query",
-  "summary_format": "how to summarize results",
-  "chart_recommendation": "bar|line|pie|histogram|scatter|none"
 }
+
+If the user asks for aggregated data by user, use the user name in the data chart and not the user ID.
 """
 
 
