@@ -24,31 +24,31 @@ TABLE_SCHEMA = """
 {
   "users": {
     "user_id": "int (primary key)",
-    "user_name": "string", 
-    "email": "string",
+    "user_name": "string",
+    "email": "string", 
     "signup_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "country": "string"
   },
   "sales": {
     "record_id": "int (primary key)",
     "user_id": "int (foreign key to users.user_id)",
-    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)", 
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "sale_amount_usd": "decimal(10,2)",
-    "product_category": "string"
+    "product_category": "string (values: 'Software', 'Hardware', 'Service')"
   },
   "contracts": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)",
-    "contract_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "contract_value_usd": "decimal(10,2)",
-    "contract_type": "string"
-  },
-  "invoices": {
     "record_id": "int (primary key)", 
     "user_id": "int (foreign key to users.user_id)",
-    "invoice_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "contract_value_usd": "decimal(10,2)",
+    "contract_type": "string (values: 'Monthly', 'Annual', 'One-Time')"
+  },
+  "invoices": {
+    "record_id": "int (primary key)",
+    "user_id": "int (foreign key to users.user_id)", 
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "invoice_amount_usd": "decimal(10,2)",
-    "payment_status": "string"
+    "status": "string (values: 'Paid', 'Unpaid', 'Overdue')"
   }
 }
 """
@@ -66,8 +66,8 @@ Table Schema:
 {
   "users": {
     "user_id": "int (primary key)",
-    "user_name": "string", 
-    "email": "string",
+    "user_name": "string",
+    "email": "string", 
     "signup_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "country": "string"
   },
@@ -76,21 +76,21 @@ Table Schema:
     "user_id": "int (foreign key to users.user_id)",
     "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "sale_amount_usd": "decimal(10,2)",
-    "product_category": "string (values: Software, Service, Hardware)"
+    "product_category": "string (values: 'Software', 'Hardware', 'Service')"
   },
   "contracts": {
     "record_id": "int (primary key)", 
     "user_id": "int (foreign key to users.user_id)",
-    "contract_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "contract_value_usd": "decimal(10,2)",
-    "contract_type": "string"
+    "contract_type": "string (values: 'Monthly', 'Annual', 'One-Time')"
   },
   "invoices": {
     "record_id": "int (primary key)",
     "user_id": "int (foreign key to users.user_id)", 
-    "invoice_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
     "invoice_amount_usd": "decimal(10,2)",
-    "payment_status": "string"
+    "status": "string (values: 'Paid', 'Unpaid', 'Overdue')"
   }
 }
 
@@ -244,55 +244,16 @@ IMPORTANT:
 If the user asks for aggregated data by user, always JOIN with the users table and use user_name in results, not user_id. Format monetary values with appropriate precision and include relevant metrics like counts, averages, or percentages where meaningful.
 """
 
-
-# Higher Level System prompt for the AI agent that would use more tokens
-HIGHER_LEVEL_SYSTEM_PROMPT = f"""
-You are a helpful data analyst assistant named Ari. Your job is to convert natural language questions into SQL queries for Amazon Athena and provide comprehensive analysis.
-
-Available database: {ATHENA_DATABASE}
-Available tables and schema: {TABLE_SCHEMA}
-
-When a user asks a question, you need to provide a JSON response with the following structure:
-{{
-    "sql_query": "SELECT * FROM table...",
-    "explanation": "Brief explanation of what this query does and what the user can expect to see",
-}}
-
-Guidelines for SQL:
-- Use proper SQL syntax for Athena (Presto SQL)
-- For date comparisons, assume current year if not specified
-- For "top N" requests, use ORDER BY and LIMIT
-- Always use table aliases for clarity
-- Always limit results to reasonable numbers (use LIMIT clause)
-
-Guidelines for explanations:
-- Keep explanations concise but informative
-- Explain what business insights the query will reveal
-- Mention any assumptions you made about the request
-
-Guidelines for chart recommendations:
-- "bar" for top/bottom comparisons, categories
-- "line" for trends over time
-- "pie" for part-to-whole relationships (max 8 categories)
-- "histogram" for distributions
-- "scatter" for correlations
-- "none" if data isn't suitable for visualization
-
-Return only valid JSON, no additional text or markdown formatting.
-"""
-
 # Bedrock Config
 #     Step 1: Go to Bedrock Console
 #
 #     Open AWS Bedrock Console: https://console.aws.amazon.com/bedrock/
 #     Make sure you're in the correct region (same region as your code - probably us-east-1)
 #
-#     Step 2: Request Model Access
+#     Step 2: Choose Model -> Request Model Access
 #
 #     Click "Model access" in the left sidebar
 #     Click "Request model access" or "Manage model access"
-#     Find "Anthropic" section
-#     Check the box next to "Claude 3 Sonnet" (or whatever Claude model you're using)
 #     Click "Request model access"
 #
 #     Step 3: Wait for Approval
@@ -304,69 +265,6 @@ Return only valid JSON, no additional text or markdown formatting.
 #     Step 4: Check Your Model ID
 #     Make sure your config.py has the correct model ID:
 
-# schema in json form
-TABLE_SCHEMA = {
-    "users": {
-        "description": "Contains user profile information with unique identifiers and contact details.",
-        "columns": {
-            "user_id": "Unique identifier for each user.",
-            "user_name": "Full name of the user.",
-            "email": "User's email address.",
-            "signup_date": "Date when the user signed up.",
-            "country": "User's country of residence."
-        }
-    },
-    "contracts": {
-        "description": "Contains contract transaction details linked to users. Each record represents a single contract signed by a user on a specific date.",
-        "columns": {
-            "record_id": "Unique identifier for each contract record.",
-            "user_id": "Foreign key linking to users.user_id.",
-            "record_date": "Date the contract was signed or recorded.",
-            "contract_value_usd": "Total value of the contract in USD.",
-            "contract_type": "Type of contract, e.g., Annual, Monthly, or One-Time."
-        }
-    },
-    "sales": {
-        "description": "Contains sales transactions linked to users, detailing the amount and product category.",
-        "columns": {
-            "record_id": "Unique identifier for each sales transaction.",
-            "user_id": "Foreign key linking to users.user_id.",
-            "record_date": "Date the sale was made.",
-            "sale_amount_usd": "Amount of the sale in USD.",
-            "product_category": "Category of the product sold."
-        }
-    }
-}
-# "invoices": {
-#     "description": "Contains invoice records issued to users. Each record represents a single invoice with associated payment status.",
-#     "columns": {
-#         "record_id": "Unique identifier for each invoice record.",
-#         "user_id": "Foreign key linking to users.user_id.",
-#         "record_date": "Date the invoice was issued.",
-#         "invoice_amount_usd": "Total amount billed in USD on the invoice.",
-#         "status": "Current status of the invoice, e.g., Paid, Unpaid, Overdue."
-#     }
-# },
-# "leads": {
-#     "description": "Contains lead information generated by or linked to users, with details on source and value.",
-#     "columns": {
-#         "record_id": "Unique identifier for each lead record.",
-#         "user_id": "Foreign key linking to users.user_id.",
-#         "record_date": "Date the lead was created or recorded.",
-#         "lead_source": "Source from which the lead originated, e.g., referral, ad campaign.",
-#         "lead_value_usd": "Estimated monetary value of the lead in USD."
-#     }
-# },
-# "renewals": {
-#     "description": "Contains contract renewal records associated with users, detailing term length and renewal value.",
-#     "columns": {
-#         "record_id": "Unique identifier for each renewal record.",
-#         "user_id": "Foreign key linking to users.user_id.",
-#         "record_date": "Date the renewal was processed.",
-#         "renewal_term_months": "Length of the renewal term in months.",
-#         "renewal_value_usd": "Monetary value of the renewal in USD."
-#     }
-# },
 
 # -------------------- Testing --------------------------
 if __name__ == "__main__":

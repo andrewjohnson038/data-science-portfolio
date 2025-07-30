@@ -1,30 +1,184 @@
 {
-  "users": {
-    "user_id": "int (primary key)",
-    "user_name": "string",
-    "email": "string",
-    "signup_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "country": "string"
-  },
-  "sales": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)",
-    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "sale_amount_usd": "decimal(10,2)",
-    "product_category": "string"
-  },
-  "contracts": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)",
-    "contract_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "contract_value_usd": "decimal(10,2)",
-    "contract_type": "string"
-  },
-  "invoices": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)",
-    "invoice_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "invoice_amount_usd": "decimal(10,2)",
-    "payment_status": "string"
-  }
+  "tables": [
+    {
+      "separator": "table_1",
+      "name": "dummy_sales_data.users",
+      "schema": "CREATE TABLE dummy_sales_data.users (user_id int, user_name character varying(200), email character varying(200), signup_date date, country character varying(200) );",
+      "description": "This table stores information about users including their registration details and location.",
+      "columns": [
+        {
+          "name": "user_id",
+          "description": "unique identifier for users, primary key",
+          "synonyms": ["user id", "customer id", "id"]
+        },
+        {
+          "name": "user_name",
+          "description": "full name of the user",
+          "synonyms": ["name", "customer name", "user name"]
+        },
+        {
+          "name": "email",
+          "description": "email address of the user",
+          "synonyms": ["email address", "contact email"]
+        },
+        {
+          "name": "signup_date",
+          "description": "date when user registered/signed up",
+          "synonyms": ["registration date", "sign up date", "joined date"]
+        },
+        {
+          "name": "country",
+          "description": "country where the user is located",
+          "synonyms": ["location", "region", "customer country"]
+        }
+      ],
+      "sample_queries": [
+        {
+          "query": "SELECT COUNT(user_id) as total_users FROM dummy_sales_data.users WHERE country = 'Mongolia' AND EXTRACT(YEAR FROM signup_date) = 2025",
+          "user_input": "How many users signed up from Mongolia in 2025?"
+        },
+        {
+          "query": "SELECT user_name, email FROM dummy_sales_data.users WHERE signup_date >= DATE '2025-06-01' ORDER BY signup_date DESC",
+          "user_input": "Show me recent user signups since June 2025"
+        }
+      ]
+    },
+    {
+      "separator": "table_2",
+      "name": "dummy_sales_data.sales",
+      "schema": "CREATE TABLE dummy_sales_data.sales (record_id int, user_id int, record_date date, sale_amount_usd decimal(10,2), product_category character varying(200) );",
+      "description": "This table stores sales transaction records with amounts and product categories.",
+      "columns": [
+        {
+          "name": "record_id",
+          "description": "unique identifier for sales records, primary key",
+          "synonyms": ["record id", "sale id", "transaction id"]
+        },
+        {
+          "name": "user_id",
+          "description": "foreign key reference to users table",
+          "synonyms": ["user id", "customer id"]
+        },
+        {
+          "name": "record_date",
+          "description": "date when the sale transaction occurred",
+          "synonyms": ["sale date", "transaction date", "purchase date"]
+        },
+        {
+          "name": "sale_amount_usd",
+          "description": "monetary amount of the sale in USD",
+          "synonyms": ["sale amount", "revenue", "transaction amount", "purchase amount"]
+        },
+        {
+          "name": "product_category",
+          "description": "category of product sold, values: Software, Hardware, Service",
+          "synonyms": ["category", "product type", "service type"]
+        }
+      ],
+      "sample_queries": [
+        {
+          "query": "SELECT DATE_FORMAT(DATE_TRUNC('month', record_date), '%Y-%m') AS month_year, SUM(sale_amount_usd) AS total_sales FROM dummy_sales_data.sales WHERE record_date >= DATE '2025-01-01' GROUP BY DATE_TRUNC('month', record_date) ORDER BY DATE_TRUNC('month', record_date)",
+          "user_input": "Show me monthly sales trends for 2025"
+        },
+        {
+          "query": "SELECT u.user_name, SUM(s.sale_amount_usd) AS total_sales FROM dummy_sales_data.sales s JOIN dummy_sales_data.users u ON s.user_id = u.user_id GROUP BY u.user_id, u.user_name ORDER BY total_sales DESC LIMIT 10",
+          "user_input": "Who are the top 10 users by sales revenue?"
+        },
+        {
+          "query": "SELECT product_category, COUNT(*) AS transaction_count, AVG(sale_amount_usd) AS avg_amount FROM dummy_sales_data.sales GROUP BY product_category ORDER BY transaction_count DESC",
+          "user_input": "Show sales performance by product category"
+        }
+      ]
+    },
+    {
+      "separator": "table_3",
+      "name": "dummy_sales_data.contracts",
+      "schema": "CREATE TABLE dummy_sales_data.contracts (record_id int, user_id int, record_date date, contract_value_usd decimal(10,2), contract_type character varying(200) );",
+      "description": "This table stores contract information including values and contract types.",
+      "columns": [
+        {
+          "name": "record_id",
+          "description": "unique identifier for contract records, primary key",
+          "synonyms": ["record id", "contract id"]
+        },
+        {
+          "name": "user_id",
+          "description": "foreign key reference to users table",
+          "synonyms": ["user id", "customer id"]
+        },
+        {
+          "name": "record_date",
+          "description": "date when the contract was created/signed",
+          "synonyms": ["contract date", "signing date", "agreement date"]
+        },
+        {
+          "name": "contract_value_usd",
+          "description": "monetary value of the contract in USD",
+          "synonyms": ["contract value", "contract amount", "deal value"]
+        },
+        {
+          "name": "contract_type",
+          "description": "type of contract, values: Monthly, Annual, One-Time",
+          "synonyms": ["contract type", "agreement type", "subscription type"]
+        }
+      ],
+      "sample_queries": [
+        {
+          "query": "SELECT contract_type, COUNT(*) AS contract_count, SUM(contract_value_usd) AS total_value FROM dummy_sales_data.contracts GROUP BY contract_type ORDER BY total_value DESC",
+          "user_input": "Show contract performance by type"
+        },
+        {
+          "query": "SELECT u.user_name, c.contract_value_usd, c.contract_type FROM dummy_sales_data.contracts c JOIN dummy_sales_data.users u ON c.user_id = u.user_id WHERE c.record_date >= DATE '2025-07-01' ORDER BY c.contract_value_usd DESC",
+          "user_input": "Show recent high-value contracts from July 2025"
+        }
+      ]
+    },
+    {
+      "separator": "table_4",
+      "name": "dummy_sales_data.invoices",
+      "schema": "CREATE TABLE dummy_sales_data.invoices (record_id int, user_id int, record_date date, invoice_amount_usd decimal(10,2), status character varying(200) );",
+      "description": "This table stores invoice information including amounts and payment status.",
+      "columns": [
+        {
+          "name": "record_id",
+          "description": "unique identifier for invoice records, primary key",
+          "synonyms": ["record id", "invoice id", "bill id"]
+        },
+        {
+          "name": "user_id",
+          "description": "foreign key reference to users table",
+          "synonyms": ["user id", "customer id"]
+        },
+        {
+          "name": "record_date",
+          "description": "date when the invoice was created/issued",
+          "synonyms": ["invoice date", "bill date", "issue date"]
+        },
+        {
+          "name": "invoice_amount_usd",
+          "description": "monetary amount of the invoice in USD",
+          "synonyms": ["invoice amount", "bill amount", "amount due"]
+        },
+        {
+          "name": "status",
+          "description": "payment status of invoice, values: Paid, Unpaid, Overdue",
+          "synonyms": ["payment status", "invoice status", "bill status"]
+        }
+      ],
+      "sample_queries": [
+        {
+          "query": "SELECT status, COUNT(*) AS invoice_count, SUM(invoice_amount_usd) AS total_amount FROM dummy_sales_data.invoices GROUP BY status ORDER BY total_amount DESC",
+          "user_input": "Show invoice summary by payment status"
+        },
+        {
+          "query": "SELECT u.user_name, i.invoice_amount_usd FROM dummy_sales_data.invoices i JOIN dummy_sales_data.users u ON i.user_id = u.user_id WHERE i.status = 'Overdue' AND i.record_date <= DATE '2025-06-30' ORDER BY i.invoice_amount_usd DESC",
+          "user_input": "Which users have overdue invoices from before July 2025?"
+        },
+        {
+          "query": "SELECT DATE_FORMAT(DATE_TRUNC('month', record_date), '%Y-%m') AS month_year, COUNT(CASE WHEN status = 'Paid' THEN 1 END) AS paid_count, COUNT(CASE WHEN status = 'Unpaid' THEN 1 END) AS unpaid_count, COUNT(CASE WHEN status = 'Overdue' THEN 1 END) AS overdue_count FROM dummy_sales_data.invoices GROUP BY DATE_TRUNC('month', record_date) ORDER BY DATE_TRUNC('month', record_date)",
+          "user_input": "Show monthly invoice payment trends"
+        }
+      ]
+    }
+  ]
 }
