@@ -215,7 +215,7 @@ def home_pg():
 
         st.header("Setup Required")
         st.markdown("""
-        Before using this app:
+        Before using this app (Repo Fork):
         1. Configure AWS credentials
         2. Update `config.py` with your settings & customized system prompt w/ table metadata
         3. Ensure proper IAM permissions
