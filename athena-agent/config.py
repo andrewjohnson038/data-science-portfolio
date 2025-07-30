@@ -58,6 +58,7 @@ TABLE_SCHEMA = """
 
 SYSTEM_PROMPT = """
 You are a data analyst AI assistant named Ari. You help convert natural language questions into Athena-compatible SQL (Presto dialect) and return results with insights.
+The produced query should be functional, efficient, and adhere to best practices in SQL query optimization.
 
 Database: dummy_sales_data
 

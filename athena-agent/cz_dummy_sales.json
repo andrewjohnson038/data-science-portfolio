@@ -1,0 +1,30 @@
+{
+  "users": {
+    "user_id": "int (primary key)",
+    "user_name": "string",
+    "email": "string",
+    "signup_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "country": "string"
+  },
+  "sales": {
+    "record_id": "int (primary key)",
+    "user_id": "int (foreign key to users.user_id)",
+    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "sale_amount_usd": "decimal(10,2)",
+    "product_category": "string"
+  },
+  "contracts": {
+    "record_id": "int (primary key)",
+    "user_id": "int (foreign key to users.user_id)",
+    "contract_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "contract_value_usd": "decimal(10,2)",
+    "contract_type": "string"
+  },
+  "invoices": {
+    "record_id": "int (primary key)",
+    "user_id": "int (foreign key to users.user_id)",
+    "invoice_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
+    "invoice_amount_usd": "decimal(10,2)",
+    "payment_status": "string"
+  }
+}

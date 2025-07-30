@@ -170,7 +170,6 @@ BNY,Blackrock New York Muni Trust Inc.,NYSE
 BOE,Blackrock Global,NYSE
 BOH,Bank Of Hawaii Corp.,NYSE
 BP,Bp P.L.C.,NYSE
-BPT,Bp Prudhoe Bay Royalty Trust,NYSE
 BR,Broadridge Financial Solutions Llc,NYSE
 BRC,Brady Corp.,NYSE
 BRFS,Brf-Brasil Foods S.A.,NYSE
@@ -328,7 +327,6 @@ DE,Deere & Company,NYSE
 DEI,Douglas Emmett,NYSE
 DEO,Diageo Plc,NYSE
 DFP,Flaherty & Crumrine Dynamic,NYSE
-DFS,Discover Financial Services,NYSE
 DG,Dollar General Corp.,NYSE
 DGX,Quest Diagnostics Inc.,NYSE
 DHF,Dreyfus High Yield Strategies Fund,NYSE
@@ -465,7 +463,6 @@ FET,Forum Energy Technologies Inc,NYSE
 FF,Futurefuel Corp.,NYSE
 FFA,First Trust Enhanced Equity Income Fund,NYSE
 FFC,Flaherty Crumrine/Claymore Preferred,NYSE
-FGB,Ferrellgas-Partners L.P.,NYSE
 FHN,First Tennessee National Corp.,NYSE
 FI,Frank's International N.V.,NYSE
 FICO,Fair Isaac And Company Inc.,NYSE
@@ -632,7 +629,6 @@ IGA,ING Global Advantage And Premium,NYSE
 IGD,ING Global Equity Dividend And Premium,NYSE
 IGI,Western Asset Investment Grade Defined,NYSE
 IGR,ING Clarion Global Real Estate,NYSE
-IGT,International Game Technology,NYSE
 IHD,ING Emerging Markets High Dividend,NYSE
 IHG,Intercontinental Hotels Group,NYSE
 IHS,Ihs Inc.,NYSE
@@ -659,7 +655,6 @@ IVR,Invesco Mortgage Capital Inc,NYSE
 IVZ,Invesco Plc,NYSE
 IX,Orix Corp Ads,NYSE
 JBI,Lehman Abs Cp 7.857%,NYSE
-JBK,Lehman Abs Corp.,NYSE
 JBL,Jabil Circuit,NYSE
 JCE,Nuveen Core Equity Alpha Fund,NYSE
 JCI,Johnson Controls,NYSE
@@ -672,7 +667,6 @@ JKS,Jinkosolar Holding Company Limited,NYSE
 JLL,Jones Lang Lasalle Inc.,NYSE
 JLS,Nuveen Mortgage Opportunity Term Fund,NYSE
 JNJ,Johnson & Johnson,NYSE
-JNPR,Juniper Networks,NYSE
 JOE,St. Joe Company,NYSE
 JOF,Japan Smaller Capitalization Fund Inc,NYSE
 JPC,Nuveen Preferred And Convertible,NYSE
@@ -680,7 +674,6 @@ JPI,Nuveen Preferred And Income Term Fund,NYSE
 JPM,J P Morgan Chase & Co,NYSE
 JQC,Nuveen Preferred And Convertible 2,NYSE
 JRI,Nuveen Real Asset Income And Gr,NYSE
-JWN,Nordstrom,NYSE
 K,Kellogg Company,NYSE
 KAI,Kadant Inc,NYSE
 KAR,Kar Auction Services Inc,NYSE
@@ -828,7 +821,6 @@ MPX,Marine Products Corp.,NYSE
 MQT,Blackrock Muniyield Quality Fund II,NYSE
 MQY,Blackrock Muniyield Quality Fund,NYSE
 MRC,Mrc Global Inc.,NYSE
-MRIN,Marin Sotfware Incorporated,NYSE
 MRK,Merck & Company,NYSE
 MS,Morgan Stanley,NYSE
 MSA,Mine Safety Appliances Company,NYSE
@@ -940,7 +932,6 @@ NXN,Nuveen Insured New York Tax-Free,NYSE
 NXP,Nuveen Tax Free Income Portfolio,NYSE
 NYT,New York Times Company,NYSE
 O,Realty Income Corp.,NYSE
-OB,Onebeacon Insurance Group,NYSE
 OC,Owens Corning Inc,NYSE
 ODC,Oil-Dri Corporation Of America,NYSE
 ODP,Office Depot,NYSE
@@ -1018,7 +1009,6 @@ PHI,Philippine Long Distance Telephone,NYSE
 PHK,Pimco High,NYSE
 PHM,Pultegroup,NYSE
 PHT,Pioneer High Income Trust,NYSE
-PHX,Panhandle Royalty Company,NYSE
 PII,Polaris Industries Inc.,NYSE
 PIM,Putnam Master Intermediate Income,NYSE
 PKE,Park Electrochemical Corp.,NYSE
@@ -1161,7 +1151,6 @@ SM,Sm Energy Company,NYSE
 SMA,Symmetry Medical Inc,NYSE
 SMFG,Sumitomo Mitsui Financial Group Inc,NYSE
 SMG,Scotts Miracle-Gro Company,NYSE
-SMP,Standard Motor Products,NYSE
 SN,Sanchez Energy Corporation,NYSE
 SNA,Snap-On Inc.,NYSE
 SNN,Smith & Nephew Snats,NYSE
@@ -1203,7 +1192,6 @@ STZ,Constellation Brands Inc,NYSE
 SU,Suncor Energy Inc.,NYSE
 SUI,Sun Communities,NYSE
 SUNE,Sunedison Inc.,NYSE
-SUP,Superior Industries International,NYSE
 SWK,Stanley Black & Decker Inc,NYSE
 SWX,Southwest Gas Corp.,NYSE
 SWZ,Swiss Helvetia Fund,NYSE
@@ -1211,7 +1199,6 @@ SXC,Suncoke Energy Inc,NYSE
 SXI,Standex International Corp.,NYSE
 SXT,Sensient Technologies Corp.,NYSE
 SYK,Stryker Corp.,NYSE
-SYT,Syngenta Ag,NYSE
 SYY,Sysco Corp.,NYSE
 T,AT&T Inc.,NYSE
 TAC,Transalta Corp.,NYSE
@@ -1332,7 +1319,6 @@ WAB,Wabtec Corp.,NYSE
 WAL,Western Alliance Bancorporation,NYSE
 WAT,Waters Corp.,NYSE
 WBS,Webster Financial Corp.,NYSE
-X,United States Steel Corp.,NYSE
 XEL,Xcel Energy Inc.,NYSE
 XIN,Xinyuan Real Estate Co Ltd,NYSE
 XOM,Exxon Mobil Corp.,NYSE
@@ -1457,7 +1443,6 @@ BLIN,Bridgeline Digital,NASDAQ
 BLKB,Blackbaud,NASDAQ
 BLMN,Bloomin' Brands Inc.,NASDAQ
 BLRX,Biolinerx Ltd.,NASDAQ
-BLUE,Bluebird Bio Inc.,NASDAQ
 BMRC,Bank Of Marin Bancorp,NASDAQ
 BMRN,Biomarin Pharmaceutical Inc.,NASDAQ
 BOKF,Bok Financial Corp.,NASDAQ
@@ -1583,7 +1568,6 @@ CTAS,Cintas Corp.,NASDAQ
 CTBI,Community Trust Bancorp,NASDAQ
 CTRN,Citi Trends,NASDAQ
 CTSH,Cognizant Technology Solutions,NASDAQ
-CUBA,The Herzfeld Caribbean Basin Fund,NASDAQ
 CUBI,Customers Bancorp,NASDAQ
 CVBF,Cvb Financial Corp.,NASDAQ
 CVCO,Cavco Industries,NASDAQ
@@ -1631,7 +1615,6 @@ DXPE,Dxp Enterprises,NASDAQ
 EA,Electronic Arts Inc.,NASDAQ
 EBAY,Ebay Inc.,NASDAQ
 EBMT,Eagle Bancorp Montana,NASDAQ
-EBTC,Enterprise Bancorp Inc,NASDAQ
 ECPG,Encore Capital Group Inc,NASDAQ
 EDAP,Edap Tms S.A.,NASDAQ
 EDUC,Educational Development Corp.,NASDAQ
@@ -1652,7 +1635,6 @@ ERIE,Erie Indemnity Company,NASDAQ
 ERII,Energy Recovery,NASDAQ
 ESCA,Escalade Inc.,NASDAQ
 ESEA,Euroseas Ltd,NASDAQ
-ESGR,Enstar Group Limited,NASDAQ
 ESLT,Elbit Systems Ltd,NASDAQ
 ESPR,Esperion Therapeutics Inc.,NASDAQ
 ESSA,Essa Bancorp,NASDAQ
@@ -1690,7 +1672,6 @@ FITB,Fifth Third Bancorp,NASDAQ
 FIVE,Five Below Inc.,NASDAQ
 FIZZ,National Beverage,NASDAQ
 FLEX,Flextronics International Ltd,NASDAQ
-FLIC,The First Of Long Island Corp.,NASDAQ
 FLL,Full House Resorts,NASDAQ
 FLWS,1-800 Flowers.Com,NASDAQ
 FLXS,Flexsteel Industries,NASDAQ
@@ -1775,7 +1756,6 @@ HBNC,Horizon Bancorp [In],NASDAQ
 HCKT,The Hackett Group,NASDAQ
 HCSG,Healthcare Services Group,NASDAQ
 HDSN,Hudson Technologies,NASDAQ
-HEES,H&E Equipment Services,NASDAQ
 HELE,Helen Of Troy Limited,NASDAQ
 HFBL,Home Federal Bancorp Inc. Of Louisiana,NASDAQ
 HFWA,Heritage Financial Corp.,NASDAQ
@@ -1879,7 +1859,6 @@ KTOS,Kratos Defense & Security Solutions,NASDAQ
 KVHI,Kvh Industries,NASDAQ
 LAKE,Lakeland Industries,NASDAQ
 LAMR,Lamar Advertising Company,NASDAQ
-LANC,Lancaster Colony Corp.,NASDAQ
 LAND,Gladstone Land Corporation,NASDAQ
 LARK,Landmark Bancorp Inc.,NASDAQ
 LBTYA,Liberty Global,NASDAQ
@@ -1939,7 +1918,6 @@ MGIC,Magic Software Enterprises Ltd,NASDAQ
 MGPI,Mgp Ingredients,NASDAQ
 MGRC,Mcgrath Rentcorp,NASDAQ
 MGYR,Magyar Bancorp,NASDAQ
-MHLD,Maiden Hldgs Ltd,NASDAQ
 MIDD,The Middleby Corp.,NASDAQ
 MIND,Mitcham Industries,NASDAQ
 MITK,Mitek Systems Inc,NASDAQ
@@ -2138,7 +2116,6 @@ RFIL,Rf Industries,NASDAQ
 RGCO,Rgc Resources Inc.,NASDAQ
 RGEN,Repligen Corp.,NASDAQ
 RGLD,Royal Gold,NASDAQ
-RGLS,Regulus Therapeutics Inc.,NASDAQ
 RICK,Rick's Cabaret International,NASDAQ
 RIGL,Rigel Pharmaceuticals,NASDAQ
 RMBS,Rambus,NASDAQ
@@ -2206,7 +2183,6 @@ SLP,Simulations Plus,NASDAQ
 SLRC,Solar Capital Ltd,NASDAQ
 SMBC,Southern Missouri Bancorp,NASDAQ
 SMCI,Super Micro Computer,NASDAQ
-SMPL,Kaiser Federal Financial Group,NASDAQ
 SMRT,Stein Mart,NASDAQ
 SMSI,Smith Micro Software,NASDAQ
 SMTC,Semtech Corp.,NASDAQ
