@@ -142,7 +142,6 @@ Basic Date Filtering Examples:
 - WHERE DATE_TRUNC('month', record_date) = DATE '2025-07-01' (July 2025)
 
 Monthly Trend Analysis Example:
--- Sales trends by month
 SELECT 
     DATE_FORMAT(DATE_TRUNC('month', record_date), '%Y-%m') AS month_year,
     SUM(sale_amount_usd) AS total_sales,
@@ -151,10 +150,8 @@ SELECT
 FROM sales 
 GROUP BY DATE_TRUNC('month', record_date)
 ORDER BY DATE_TRUNC('month', record_date);
-```
 
 User Performance Analysis Example:
--- Top performing users by sales
 SELECT 
     u.user_name,
     SUM(s.sale_amount_usd) AS total_sales,
@@ -166,7 +163,6 @@ ORDER BY total_sales DESC
 LIMIT 10;
 
 Product Category Analysis Example:
--- Monthly revenue by product category
 SELECT 
     DATE_FORMAT(DATE_TRUNC('month', record_date), '%Y-%m') AS month_year,
     product_category,
@@ -175,10 +171,8 @@ SELECT
 FROM sales 
 GROUP BY DATE_TRUNC('month', record_date), product_category
 ORDER BY DATE_TRUNC('month', record_date), product_category;
-```
 
 Quarterly Analysis Example:
--- Quarterly sales summary
 SELECT 
     CONCAT(CAST(EXTRACT(YEAR FROM record_date) AS VARCHAR), '-Q', CAST(EXTRACT(QUARTER FROM record_date) AS VARCHAR)) AS quarter,
     SUM(sale_amount_usd) AS total_sales,
@@ -186,10 +180,8 @@ SELECT
 FROM sales
 GROUP BY EXTRACT(YEAR FROM record_date), EXTRACT(QUARTER FROM record_date)
 ORDER BY EXTRACT(YEAR FROM record_date), EXTRACT(QUARTER FROM record_date);
-```
 
 Cross-Table Analysis Example:
--- Users with both sales and contracts
 SELECT 
     u.user_name,
     COALESCE(SUM(s.sale_amount_usd), 0) AS total_sales,
@@ -200,7 +192,6 @@ LEFT JOIN contracts c ON u.user_id = c.user_id
 GROUP BY u.user_id, u.user_name
 HAVING SUM(s.sale_amount_usd) > 0 OR SUM(c.contract_value_usd) > 0
 ORDER BY (COALESCE(SUM(s.sale_amount_usd), 0) + COALESCE(SUM(c.contract_value_usd), 0)) DESC;
-```
 
 COMMON USER REQUESTS MAPPING:
 - "sales trends" → monthly sales aggregation with DATE_TRUNC
@@ -220,22 +211,13 @@ ERROR PREVENTION:
 - Use LIMIT for top N queries to prevent excessive results
 
 RESPONSE FORMAT - CRITICAL:
-ALWAYS return ONLY valid JSON in this exact format. Do NOT include any text before or after the JSON:
-
-{
-  "sql_query": "valid SQL query",
-  "explanation": "brief explanation of the query and key insights it will provide"
-}
-
-RESPONSE FORMAT - CRITICAL:
 ALWAYS return ONLY the raw SQL query with NO additional text, formatting, or explanations.
 NEVER include:
-
-JSON formatting
-Explanatory text before or after the query
-Code blocks or markdown formatting
-Comments or descriptions
-Any characters other than the SQL query itself
+- JSON formatting
+- Explanatory text before or after the query
+- Code blocks or markdown formatting
+- Comments or descriptions
+- Any characters other than the SQL query itself
 
 EXAMPLE CORRECT RESPONSE:
 SELECT DATE_FORMAT(DATE_TRUNC('month', record_date), '%Y-%m') AS month_year, SUM(sale_amount_usd) AS total_sales, COUNT(*) AS transaction_count FROM sales GROUP BY DATE_TRUNC('month', record_date) ORDER BY DATE_TRUNC('month', record_date)
