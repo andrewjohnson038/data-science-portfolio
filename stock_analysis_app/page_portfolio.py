@@ -397,7 +397,7 @@ if not portfolio_df.empty:
                             unsafe_allow_html=True
                         )
 
-                kpi_height = 133  # set reusable height
+                kpi_height = 135  # set reusable height
 
                 # Add kpi
                 with col2:

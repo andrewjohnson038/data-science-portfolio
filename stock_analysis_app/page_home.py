@@ -589,7 +589,7 @@ def render_home_page_data(selected_stock: str):
             # Within sh_col1, create two columns:
             with sh_col1:
                 sh_col1.write('Key Metrics:')
-                sh_col1 = st.container(border=True, height=489)
+                sh_col1 = st.container(border=True, height=465)
                 with sh_col1:
                     sh_col1_1, sh_col1_2 = sh_col1.columns(2)
 
@@ -809,7 +809,7 @@ def render_home_page_data(selected_stock: str):
                 sh_col2.write(Price_History_Tbl_Title)
 
                 # Create a Time Series Visual for our Data in column 2 of the sh container:
-                with st.container(border=True):
+                with st.container(border=True, height=465):
                     # Apply an exponential smoothing line to the graph starting - create smoothed pricing variable
                     smoothed_prices = data.apply_exponential_smoothing(selected_stock_price_history_df,
                                                                        smoothing_level=0.002)  # can change alpha
@@ -843,6 +843,10 @@ def render_home_page_data(selected_stock: str):
                             line=dict(color='yellow', width=1.5, dash='dash')  # Red dashed line for smoothed prices
                         ))
 
+                        # Get stock data date range
+                        ss_stock_start_date = selected_stock_price_history_df['Date'].min()
+                        ss_stock_end_date = selected_stock_price_history_df['Date'].max()
+
                         # Trace a line for the S&P 500 (SPY) as a benchmark to the selected stock
                         # First, need to normalize the SPY data to match the stock's initial price
                         stock_initial_price = selected_stock_price_history_df['Close'].iloc[0]
@@ -851,16 +855,74 @@ def render_home_page_data(selected_stock: str):
                         # Scale the SPY data to the stock's initial price
                         normalized_spy = (SPY_data['Close'] / spy_initial_price) * stock_initial_price
 
-                        # Trace to graph
-                        fig.add_trace(go.Scatter(
-                            x=SPY_data['Date'],
-                            y=normalized_spy,
-                            name='S&P 500',
-                            line=dict(color='gray', width=1.5, dash='dash')  # Red dashed line for smoothed prices
-                        ))
+                        # Trace SPY to graph - only show full SPY if stock data goes back far enough
+                        if ss_stock_start_date >= SPY_data['Date'].min():  # only show if have more than 3640 days data
+                            fig.add_trace(go.Scatter(
+                                x=SPY_data['Date'],
+                                y=normalized_spy,
+                                name='S&P 500',
+                                line=dict(color='gray', width=1.5, dash='dash')  # Red dashed line for smoothed prices
+                            ))
 
-                        # Update layout
-                        fig.layout.update(xaxis_rangeslider_visible=True, template='plotly_white')
+                        # Filter data for one year Spy normalized to selected stock
+                        one_year_ago = dv.one_yr_ago
+                        SPY_one_year = SPY_data[SPY_data['Date'] >= one_year_ago].copy()
+                        stock_one_year = selected_stock_price_history_df[selected_stock_price_history_df['Date'] >= one_year_ago].copy()
+
+                        # Get the stock's price from one year ago (starting point for normalization)
+                        stock_one_year_initial = stock_one_year['Close'].iloc[0]
+                        spy_one_year_initial = SPY_one_year['Close'].iloc[0]
+
+                        # Normalize SPY to match the stock's price from one year ago
+                        normalized_spy_one_year = (SPY_one_year['Close'] / spy_one_year_initial) * stock_one_year_initial
+
+                        # Add one-year SPY trace
+                        if ss_stock_start_date <= SPY_one_year['Date'].min():
+                            fig.add_trace(go.Scatter(
+                                x=SPY_one_year['Date'],
+                                y=normalized_spy_one_year,
+                                name='S&P 500 (1Y)',
+                                line=dict(color='violet', width=2, dash='dot')
+                            ))
+
+                        # Filter data for one year Spy normalized to selected stock
+                        three_year_ago = dv.three_yrs_ago
+                        SPY_three_year = SPY_data[SPY_data['Date'] >= three_year_ago].copy()
+                        stock_three_year = selected_stock_price_history_df[selected_stock_price_history_df['Date'] >= three_year_ago].copy()
+
+                        # Get the stock's price from one year ago (starting point for normalization)
+                        stock_three_year_initial = stock_three_year['Close'].iloc[0]
+                        spy_three_year_initial = SPY_three_year['Close'].iloc[0]
+
+                        # Normalize SPY to match the stock's price from one year ago
+                        normalized_spy_three_year = (SPY_three_year['Close'] / spy_three_year_initial) * stock_three_year_initial
+
+                        # Add three-year SPY trace
+                        if ss_stock_start_date <= SPY_three_year['Date'].min():
+                            fig.add_trace(go.Scatter(
+                                x=SPY_three_year['Date'],
+                                y=normalized_spy_three_year,
+                                name='S&P 500 (3Y)',
+                                line=dict(color='lightblue', width=2, dash='dot')
+                            ))
+
+                        # Update layout with time range selector buttons
+                        fig.update_layout(
+                            xaxis=dict(
+                                rangeslider=dict(visible=True),
+                                rangeselector=dict(
+                                    buttons=list([
+                                        dict(count=1, label="1W", step="day", stepmode="backward"),
+                                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                                        dict(count=1, label="1Y", step="year", stepmode="backward"),
+                                        dict(count=3, label="3Y", step="year", stepmode="backward"),
+                                        dict(step="all", label="All")
+                                    ])
+                                )
+                            ),
+                            template='plotly_white'
+                        )
+
                         st.plotly_chart(fig,
                                         use_container_width=True)  # writes the graph to app and fixes width to the container width
 
@@ -1410,8 +1472,6 @@ def render_home_page_data(selected_stock: str):
             with sh_c.container(border=False):
                 # Add DF with industry averages
                 if not industry_avg_df.empty:
-                    try:
-                        # st.dataframe(industry_avg_df, hide_index=True, use_container_width=True)
 
                         # Get industry avg df
                         ind_avg_pe = industry_avg_df.loc[industry_avg_df['Industry'] == selected_stock_industry, 'Average P/E Ratio'].values[0]
@@ -1420,36 +1480,41 @@ def render_home_page_data(selected_stock: str):
                         # Create four columns for the card layout
                         col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
 
-                        kpi_height = 133  # set reusable height
+                        kpi_height = 135  # set reusable height
 
                         # Add kpi
                         with col1:
+                            try:
+                                # get delta
+                                col_4_price_delta = selected_stock_pe_ratio - ind_avg_pe
 
-                            # get delta
-                            col_4_price_delta = selected_stock_pe_ratio - ind_avg_pe
-
-                            with st.container(height=kpi_height):
-                                st.metric(
-                                    label="Current PE",
-                                    value=f"{selected_stock_pe_ratio:.2f}",
-                                    delta=f"{col_4_price_delta:.2f} from Industry Avg",
-                                    delta_color="inverse"  # Invert the color logic
-                                )
-
+                                with st.container(height=kpi_height):
+                                    st.metric(
+                                        label="Current PE",
+                                        value=f"{selected_stock_pe_ratio:.2f}",
+                                        delta=f"{col_4_price_delta:.2f} from Industry Avg",
+                                        delta_color="inverse"  # Invert the color logic
+                                    )
+                            except:
+                                with st.container(height=kpi_height):
+                                    st.warning(f"PE Data Not Available")
                         # Add kpi
                         with col2:
+                            try:
+                                # get delta
+                                col_5_price_delta = selected_stock_roe - ind_avg_roe
 
-                            # get delta
-                            col_5_price_delta = selected_stock_roe - ind_avg_roe
-
-                            with st.container(height=kpi_height):
-                                st.metric(
-                                    label="Current ROE",
-                                    value=f"{selected_stock_roe:.2f}",
-                                    delta=f"{col_5_price_delta:.2f} from Industry Avg"
-                                )
-                    except:
-                        st.warning(f"Industry Average Not Available:(")
+                                with st.container(height=kpi_height):
+                                    st.metric(
+                                        label="Current ROE",
+                                        value=f"{selected_stock_roe:.2f}",
+                                        delta=f"{col_5_price_delta:.2f} from Industry Avg"
+                                    )
+                            except:
+                                with st.container(height=kpi_height):
+                                    st.warning(f"ROE Data Not Available")
+                else:
+                    st.warning(f"Industry Average Data Not Available")
 
     # ///////////////////////////////////////////////////////////// Forecast Tab //////////////////////////////////////////////////////////////////////////
 
@@ -1555,6 +1620,12 @@ def render_home_page_data(selected_stock: str):
         # Write Analyst Grades to App
         with sh_g.container(border=True):
 
+            # Get grades from AWS
+            grades_bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
+            grades_csv_path = 'ticker_grades_output.csv'  # name of object in S3 bucket
+
+            grades_df = data.load_csv_from_s3(grades_bucket_name, grades_csv_path)
+
             # Add KPIs at the top
             total_score_row = selected_stock_score_details_df.loc["Total Score"]
 
@@ -1565,17 +1636,54 @@ def render_home_page_data(selected_stock: str):
             # Display the stacked bar chart in Streamlit
             st.write("Score Summary:")
 
+            # Define grade mapping using midpoint of each range
+            grade_mapping = {
+                'S': 13,
+                'A': 12,
+                'A-': 11,
+                'B+': 10,
+                'B': 9,
+                'B-': 8,
+                'C+': 7,
+                'C': 6,
+                'C-': 5,
+                'D+': 4,
+                'D': 3,
+                'D-': 2,
+                'F': 1
+            }
+
+            # Convert grades to numeric values
+            grades_df['Grade_Numeric'] = grades_df['Grade'].map(grade_mapping)
+
+            # selected stock grade as numeric with mapping
+            ss_grade_numeric = grade_mapping.get(selected_stock_grade, 0)  # defaults to 0 if grade not found
+
+            # Calculate averages
+            avg_grade_score = round(grades_df['Score'].mean(), 1) * 100
+            avg_grade = round(grades_df['Grade_Numeric'].mean(), 0)
+
+            # Calculate score difference for delta
+            grade_score_difference = total_score - avg_grade_score
+
+            # Calculate score difference for delta
+            grade_difference = ss_grade_numeric - avg_grade
+
             with st.container():
                 col1, col2, col3 = st.columns([2, 2, 6])
 
                 with col1:
-                    with st.container(border=True, height=132):
-                        st.metric("Score Achieved", f"{total_score:.1f} / {total_max_score:.0f}")
+                    with st.container(border=True, height=135):
+                        st.metric("Score Achieved",
+                                  f"{total_score:.1f} / {total_max_score:.0f}",
+                                  delta=f"{grade_score_difference:+.1f} From Avg Model Score")
                 with col2:
-                    with st.container(border=True, height=132):
-                        st.metric("Model Grade", f"{selected_stock_grade}")
+                    with st.container(border=True, height=135):
+                        st.metric("Model Grade",
+                                  f"{selected_stock_grade}",
+                                  delta=f"{grade_difference:+.0f} From Avg Model Grade")
                 with col3:
-                    with st.container(border=True):
+                    with st.container(border=True, height=135):
                         # Define grade order from best to worst
                         grade_order = ['S', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F']
 
@@ -1584,12 +1692,7 @@ def render_home_page_data(selected_stock: str):
 
                         # Create mapping
                         grade_to_num = {grade: i for i, grade in enumerate(grade_order_reversed)}
-                        num_to_grade = {i: grade for grade, i in grade_to_num.items()}
-
-                        # Get grades from AWS
-                        grades_bucket_name = 'stock-ticker-data-bucket'  # S3 bucket name
-                        grades_csv_path = 'ticker_grades_output.csv'  # name of object in S3 bucket
-                        grades_df = data.load_csv_from_s3(grades_bucket_name, grades_csv_path)
+                        # num_to_grade = {i: grade for grade, i in grade_to_num.items()}
 
                         # Map grades in your DataFrame
                         grades_df['grade_numeric'] = grades_df['Grade'].map(grade_to_num)
@@ -1600,7 +1703,7 @@ def render_home_page_data(selected_stock: str):
                         # Get current theme colors
                         text_color = st.get_option("theme.textColor") or "#262730"
                         background_color = st.get_option("theme.backgroundColor") or "#FFFFFF"
-                        primary_color = st.get_option("theme.primaryColor") or "#FF6B6B"
+                        # primary_color = st.get_option("theme.primaryColor") or "#FF6B6B"
 
                         # Create the plot with transparent background
                         fig, ax = plt.subplots(figsize=(15, 1))
@@ -1662,8 +1765,8 @@ def render_home_page_data(selected_stock: str):
                     if index in ["Total Score", "Base Points"]:
                         continue
 
-                    score = row['score']
-                    max_score = row['max']
+                    score = row['score'] * 100
+                    max_score = row['max'] * 100
                     value = row['value']
 
                     # Add data for the chart
@@ -1698,14 +1801,22 @@ def render_home_page_data(selected_stock: str):
                 fig.add_trace(go.Scatter(
                     x=chart_df['Metric'],
                     y=chart_df['Max Score'],
-                    mode='lines+markers',
+                    mode='markers',
                     name='Max Possible',
-                    line=dict(color="#DAA520", width=3),  # Yellow line
                     marker=dict(size=8, color="#DAA520"),
                     hovertemplate='<b>%{x}</b><br>' +
                                   'Max Possible: %{y}<br>' +
                                   '<extra></extra>'
                 ))
+
+                # Add horizontal benchmark line for each marker
+                for i, row in chart_df.iterrows():
+                    fig.add_hline(
+                        y=row['Max Score'],
+                        line=dict(color="#DAA520", width=1, dash="dash"),
+                        opacity=0.5,
+                        layer="below"  # puts lines behind other traces
+                    )
 
                 # Update layout
                 fig.update_layout(
@@ -1770,21 +1881,6 @@ def render_home_page_data(selected_stock: str):
                         if 'high' in targets:
                             price_data.append(('High Target', float(targets['high'])))
                             colors.append('#27AE60')
-
-                            # Add metrics below the chart
-                            # if len(price_data) >= 2:
-                            #     metric_cols = st.columns(min(len(price_data), 4))
-                            #     for i, (label, value) in enumerate(price_data[:4]):
-                            #         with metric_cols[i]:
-                            #             # Calculate percentage change from current if available
-                            #             delta = None
-                            #             if 'current' in targets and label != 'Current':
-                            #                 pct_change = ((value - targets['current']) / targets['current']) * 100
-                            #                 delta = f"{pct_change:+.1f}%"
-                            #
-                            #             st.metric(label, f"${value:.2f}", delta=delta)
-                            # else:
-                            #     st.dataframe(selected_stock_analyst_targets_df, hide_index=True, use_container_width=True)
 
                             if price_data:
                                 # Create horizontal bar chart

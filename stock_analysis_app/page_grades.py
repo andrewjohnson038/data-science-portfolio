@@ -42,6 +42,9 @@ if "grades_df" not in st.session_state:
 # assign to session state var
 grades_df = st.session_state["grades_df"]
 
+# Remove underscore on update date field
+grades_df.rename(columns={'Update_Date': 'Update Date'}, inplace=True)
+
 
 # ---------------- PAGE CONTENT: TITLE ----------------
 # Provide Page Title
@@ -182,7 +185,7 @@ with sh_g.container():
                 .map(color_grades, subset=['Grade'])  # map colors to grades column
 
             # Display the styled dataframe
-            st.dataframe(ticker_grades_df, use_container_width=True)
+            st.dataframe(ticker_grades_df, hide_index=True, use_container_width=True)
 
         st.write("Grade Distributions:")
         with st.container(border=True):
