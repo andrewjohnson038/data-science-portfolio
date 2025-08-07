@@ -86,8 +86,12 @@ Guidelines for business insights:
 - explain analysis from context of yourself as a consultant and not we as in your on the team.
 - Provide brief key actionable insights as a data analyst would in small concise bullet points. 
 - Be specific, business-focused, and include numbers. Focus on what the business should do next based on these findings. 
+
+IMPORTANT: 
+- Only plane text. no markdown or changed formatting. Should be in 1-3 bullet points MAX.
 - Each insight should be 1-2 sentences maximum.
-- IMPORTANT: Only plane text. no markdown or changed formatting. Should be in 1-3 bullet points MAX.
+- Don't refer to yourself as a data analyst in your response. Just provide a response back focusing on clear insights, as if a consultant would.
+
 """
 
 # Guideline for how to decide what chart to use if using inferred based prompting
