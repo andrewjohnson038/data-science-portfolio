@@ -66,12 +66,17 @@ def home_pg():
                 with st.expander("📈 Data Visualization", expanded=False):
                     agent.create_chart(message["data"], original_question)
 
+            # Display insights if they exist (ADD THIS SECTION)
+            if "insights" in message and message["insights"]:
+                with st.expander("🧠 Intelligent Insights", expanded=False):
+                    st.markdown(message["insights"])
+
             # Display data if it exists
             if "data" in message and not message["data"].empty:
                 st.dataframe(message["data"], use_container_width=True)
 
     # Chat input
-    if prompt := st.chat_input("Ask me about your data (e.g., 'Show me top 5 users by sales in June')"):
+    if prompt := st.chat_input("e.g., 'Show me top 5 users by sales in June'"):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -87,8 +92,11 @@ def home_pg():
 
             # Handle errors
             if result['error']:
-                error_message = f"Sorry, I encountered an error: {result['error']}"
-                st.error(error_message)
+                error_message = f"Sorry, I am unable to answer that question:/ Try asking again."
+                error_message_dd = f"{result['error']}"
+                st.markdown(error_message)
+                with st.expander("Error Details"):
+                    st.text(error_message_dd)
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": error_message
@@ -125,8 +133,13 @@ def home_pg():
                     st.code(result['sql_query'], language="sql")
 
                 # CREATE AND SHOW CHART IMMEDIATELY (ADD THIS SECTION)
-                with st.expander("📈 Data Visualization", expanded=True):
+                with st.expander("📈 Data Visualization", expanded=False):
                     agent.create_chart(result['data'], prompt)
+
+                # CREATE INSIGHTS SECTION (ADD THIS)
+                with st.expander("🧠 Intelligent Insights", expanded=False):
+                    insights = agent.generate_insights(result['data'], prompt)
+                    st.markdown(insights)
 
                 # Show data of SQL Query in DF form
                 st.dataframe(result['data'], use_container_width=True)
@@ -135,10 +148,11 @@ def home_pg():
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": response,
+                    "original_question": prompt,
                     "explanation": result['analysis'].get('explanation', ''),
                     "sql_query": result['sql_query'],
                     "data": result['data'],
-                    "original_question": prompt
+                    "insights": insights
                 })
 
     # Show clear chat button only if there are user messages (more than just the initial greeting)
@@ -161,91 +175,30 @@ def home_pg():
                 ]
                 st.rerun()
 
-    # Sidebar with information
-    with st.sidebar:
-        st.markdown("<h1 style='text-align: center;'>App Info</h1>", unsafe_allow_html=True)
-        st.write("---")
-        st.markdown(f"**Athena Database:** {config.ATHENA_DATABASE}")
-        st.markdown(f"**Region:** {config.AWS_REGION}")
-
-        with st.sidebar.expander("Tables & Their Schemas"):
-            st.markdown("""
-                        **users**
-                        - `user_id`: int (primary key)  
-                        - `user_name`: string  
-                        - `email`: string  
-                        - `signup_date`: date (use `DATE 'YYYY-MM-DD'` for comparisons)  
-                        - `country`: string  
-                        
-                        **sales**
-                        - `record_id`: int (primary key)  
-                        - `user_id`: int (foreign key to `users.user_id`)  
-                        - `record_date`: date (use `DATE 'YYYY-MM-DD'` for comparisons)  
-                        - `sale_amount_usd`: decimal(10,2)  
-                        - `product_category`: string _(values: Software, Service, Hardware)_  
-                        
-                        **contracts**
-                        - `record_id`: int (primary key)  
-                        - `user_id`: int (foreign key to `users.user_id`)  
-                        - `contract_date`: date (use `DATE 'YYYY-MM-DD'` for comparisons)  
-                        - `contract_value_usd`: decimal(10,2)  
-                        - `contract_type`: string  
-                        
-                        **invoices**
-                        - `record_id`: int (primary key)  
-                        - `user_id`: int (foreign key to `users.user_id`)  
-                        - `invoice_date`: date (use `DATE 'YYYY-MM-DD'` for comparisons)  
-                        - `invoice_amount_usd`: decimal(10,2)  
-                        - `payment_status`: string  
-                        """)
-
-        st.write("---")
-
-        st.header("Example Questions")
-        st.markdown("""
-        - Show me top 5 users by contracts in June
-        - What are the total sales by country?
-        - Give me sales trends by month
-        - Who are the highest performing sellers in total contracts in 2025 ytd?
-        - Show me sales data for Q1 2025
-        """)
-
-        st.warning("NOTE: DUMMY DATA ONLY CONTAINS 2024-2025 DATA (up to 07-26-2025). THE AGENT WILL KNOW THIS, "
-                   "BUT TRY TO BE DESCRIPTIVE WHERE POSSIBLE :)")
-
-        st.header("Setup Required")
-        st.markdown("""
-        Before using this app (Repo Fork):
-        1. Configure AWS credentials
-        2. Update `config.py` with your settings & customized system prompt w/ table metadata
-        3. Ensure proper IAM permissions
-        4. Update table schema in config
-        """)
-
 
 # ------------ Test Functions ------------
 def test_streamlit_integration():
     """Test the Streamlit integration with the AthenaChatbotAgent"""
-    print("🧪 Testing Streamlit Integration with AthenaChatbotAgent...")
+    print("Testing Streamlit Integration with AthenaChatbotAgent...")
     print("=" * 60)
 
     try:
         # Test 1: Agent Initialization (same as Streamlit does)
-        print("\n1️⃣ Testing Agent Initialization (Streamlit way)...")
+        print("\n1: Testing Agent Initialization (Streamlit way)...")
         agent = initialize_agent()
         print("✅ Agent initialized successfully via Streamlit cache")
 
         # Test 2: Test the exact flow Streamlit uses
-        print("\n2️⃣ Testing Streamlit Question Processing Flow...")
+        print("\n2: Testing Streamlit Question Processing Flow...")
         test_question = "Show me the top 5 users by total sales"
-        print(f"🤔 Testing question: {test_question}")
+        print(f"Testing question: {test_question}")
 
         # This is exactly what Streamlit calls
         result = agent.process_question(test_question)
         print("✅ agent.process_question() completed")
 
         # Print the exact result structure Streamlit expects
-        print("\n📋 STREAMLIT RESULT STRUCTURE:")
+        print("\nSTREAMLIT RESULT STRUCTURE:")
         print("-" * 50)
         print(f"Keys in result: {list(result.keys())}")
         print(f"Error: {result.get('error')}")
@@ -262,7 +215,7 @@ def test_streamlit_integration():
             print("✅ No errors in process_question")
 
         # Test 4: Test config access (what Streamlit sidebar uses)
-        print("\n4️⃣ Testing Config Access...")
+        print("\n4: Testing Config Access...")
         try:
             database = config.ATHENA_DATABASE
             region = config.AWS_REGION
@@ -272,7 +225,7 @@ def test_streamlit_integration():
             print(f"❌ Config access failed: {e}")
 
         # Test 5: Test edge cases that might break Streamlit
-        print("\n5️⃣ Testing Edge Cases...")
+        print("\n5: Testing Edge Cases...")
 
         # Empty question
         try:
@@ -296,7 +249,7 @@ def test_streamlit_integration():
             print(f"❌ Long question test failed: {e}")
 
         print("\n" + "=" * 60)
-        print("🎉 STREAMLIT INTEGRATION TEST COMPLETED!")
+        print("STREAMLIT INTEGRATION TEST COMPLETED!")
         print("✅ Check above for any errors that match your Streamlit issue")
         print("=" * 60)
 
@@ -311,7 +264,7 @@ def test_streamlit_integration():
 
 def test_direct_method_calls():
     """Test calling agent methods directly to isolate issues"""
-    print("\n🔧 Testing Direct Method Calls...")
+    print("\nTesting Direct Method Calls...")
     print("-" * 40)
 
     try:
@@ -322,16 +275,16 @@ def test_direct_method_calls():
         # Test each method individually
         test_question = "Show me the top 5 users by total sales"
 
-        print("\n🧪 Testing generate_analysis...")
+        print("\nTesting generate_analysis...")
         analysis = agent.generate_analysis(test_question)
         print(f"✅ Analysis completed: {list(analysis.keys())}")
 
         if 'sql_query' in analysis:
-            print(f"\n🧪 Testing execute_athena_query...")
+            print(f"\nTesting execute_athena_query...")
             data, exec_id = agent.execute_athena_query(analysis['sql_query'])
             print(f"✅ Athena query completed: {data.shape}")
 
-            print(f"\n🧪 Testing create_chart...")
+            print(f"\nTesting create_chart...")
             chart = agent.create_chart(data, test_question)
             print(f"✅ Summary stats completed: {list(chart.keys())}")
 
@@ -345,7 +298,7 @@ def test_direct_method_calls():
 
 def test_config_validation():
     """Test configuration values"""
-    print("\n⚙️ Testing Configuration...")
+    print("\nTesting Configuration...")
     print("-" * 30)
 
     required_configs = [
@@ -376,7 +329,7 @@ if __name__ == "__main__":
     # to run the test functions, run ***python main.py test*** in terminal at athena-agent root
     # Check if we're running tests
     if len(sys.argv) > 1 and sys.argv[1] == "test":
-        print("🧪 RUNNING STREAMLIT TESTS...")
+        print("RUNNING STREAMLIT TESTS...")
         print("=" * 60)
 
         # Run configuration test
@@ -388,7 +341,7 @@ if __name__ == "__main__":
         # Run streamlit integration test
         success = test_streamlit_integration()
 
-        print(f"\n🏁 Test Result: {'PASSED' if success else 'FAILED'}")
+        print(f"\nTest Result: {'PASSED' if success else 'FAILED'}")
 
     else:
         # Run normal Streamlit app

@@ -8,6 +8,7 @@ from typing import Tuple
 import config
 import streamlit as st
 import plotly.express as px
+import re
 
 
 class AthenaChatbotAgent:
@@ -192,84 +193,239 @@ class AthenaChatbotAgent:
             print(f"Error converting Athena results to DataFrame: {e}")
             return pd.DataFrame()  # Return empty DataFrame on error
 
-    @staticmethod
-    def create_chart(df: pd.DataFrame, question: str):
+    def create_chart(self, df: pd.DataFrame, question: str):
         """
-        Create an appropriate chart based on the question asked and data returned
+        Create dynamic charts based on AI analysis of data characteristics and question type
         """
         if df.empty:
             st.warning("No data to visualize")
             return
 
-        # Convert numeric columns that might be strings
-        for col in df.columns:
-            if col != df.columns[0]:  # Skip the first column (usually names/categories)
+        # Clean and prepare data
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            try:
+                df_clean[col] = pd.to_numeric(df_clean[col], errors='ignore')
+            except:
+                pass
+
+        # Get data characteristics
+        numeric_cols = df_clean.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
+        categorical_cols = df_clean.select_dtypes(include=['object', 'string']).columns.tolist()
+
+        # Get AI recommendation for chart type
+        try:
+            chart_prompt = f"""
+            You are a data visualization expert. Based on this analysis request: "{question}"
+            
+            Data characteristics:
+            - Rows: {len(df_clean)}
+            - Numeric columns: {numeric_cols}
+            - Categorical columns: {categorical_cols}
+            - Sample data: {df_clean.head(3).to_dict('records') if not df_clean.empty else 'No data'}
+            
+            Chart selection guidelines:
+            {config.CHARTS_GUIDELINE}
+            
+            IMPORTANT: If the user specifically asks for a chart type (like "bar chart", "line chart", etc.), honor that request.
+            
+            Return ONLY one word: bar, line, pie, histogram, scatter, or none
+            """
+
+            request_body = {
+                "prompt": f"System: {chart_prompt} Assistant:",
+                "max_gen_len": 50,
+                "temperature": 0.1,
+                "top_p": 0.9
+            }
+
+            response = self.bedrock_client.invoke_model(
+                modelId=config.BEDROCK_MODEL_ID,
+                body=json.dumps(request_body),
+                contentType='application/json'
+            )
+
+            response_body = json.loads(response['body'].read())
+            chart_type = response_body['generation'].strip().lower()
+
+            # Override AI recommendation if user specifically requests a chart type
+            question_lower = question.lower()
+            if "bar chart" in question_lower or "bar graph" in question_lower:
+                chart_type = "bar"
+            elif "line chart" in question_lower or "line graph" in question_lower:
+                chart_type = "line"
+            elif "pie chart" in question_lower or "pie graph" in question_lower:
+                chart_type = "pie"
+            elif "scatter plot" in question_lower or "scatter chart" in question_lower:
+                chart_type = "scatter"
+            elif "histogram" in question_lower:
+                chart_type = "histogram"
+
+        except Exception as e:
+            # Check if user requested specific chart type as fallback
+            question_lower = question.lower()
+            if "bar chart" in question_lower or "bar graph" in question_lower:
+                chart_type = "bar"
+            elif "line chart" in question_lower or "line graph" in question_lower:
+                chart_type = "line"
+            else:
+                chart_type = "bar"  # Default fallback
+
+        # Identify date columns
+        date_cols = []
+        for col in df_clean.columns:
+            if any(date_word in col.lower() for date_word in ['date', 'time', 'month', 'year', 'quarter']):
                 try:
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                    df_clean[col] = pd.to_datetime(df_clean[col])
+                    date_cols.append(col)
+                    if col in categorical_cols:
+                        categorical_cols.remove(col)
                 except:
                     pass
 
-        # Get data characteristics
-        numeric_cols = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
-        categorical_cols = df.select_dtypes(include=['object', 'string']).columns.tolist()
-        date_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+        try:
+            # Create chart based on AI recommendation
+            if chart_type == "line" and date_cols and numeric_cols:
+                df_sorted = df_clean.sort_values(date_cols[0])
+                fig = px.line(df_sorted, x=date_cols[0], y=numeric_cols[0],
+                              title=f"{numeric_cols[0].replace('_', ' ').title()} Over Time", markers=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
 
-        question_lower = question.lower()
+            elif chart_type == "pie" and categorical_cols and numeric_cols and len(df_clean) <= 8:
+                fig = px.pie(df_clean, values=numeric_cols[0], names=categorical_cols[0],
+                             title=f"{numeric_cols[0].replace('_', ' ').title()} Distribution")
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
 
-        # For "top" questions - your case
-        if any(word in question_lower for word in ['top', 'highest', 'largest', 'most', 'best']) and len(df) <= 20:
-            if len(categorical_cols) >= 1 and len(numeric_cols) >= 1:
-                cat_col = categorical_cols[0]
-                num_col = numeric_cols[0]
+            elif chart_type == "bar" and categorical_cols and numeric_cols:
+                # Determine if horizontal or vertical based on category names length
+                avg_name_length = df_clean[categorical_cols[0]].astype(str).str.len().mean()
+                if avg_name_length > 15 or len(df_clean) > 10:
+                    # Horizontal for long names or many categories
+                    df_sorted = df_clean.sort_values(by=numeric_cols[0], ascending=True)
+                    fig = px.bar(df_sorted, x=numeric_cols[0], y=categorical_cols[0], orientation='h',
+                                 title=f"{numeric_cols[0].replace('_', ' ').title()} by {categorical_cols[0].replace('_', ' ').title()}")
+                else:
+                    # Vertical for short names
+                    df_sorted = df_clean.sort_values(by=numeric_cols[0], ascending=False)
+                    fig = px.bar(df_sorted, x=categorical_cols[0], y=numeric_cols[0],
+                                 title=f"{numeric_cols[0].replace('_', ' ').title()} by {categorical_cols[0].replace('_', ' ').title()}")
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
 
-                # # METHOD 1: Try horizontal bar chart
-                # try:
-                #     chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)  # order desc
-                #     st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
-                #     st.bar_chart(chart_data, horizontal=True, height=400)
-                # except Exception as e:
-                #     st.error(f"Horizontal bar chart failed: {e}")
-                #
-                #     # METHOD 2: Try regular bar chart
-                #     try:
-                #         chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)
-                #         st.caption(f" {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}:")
-                #         st.bar_chart(chart_data, height=400)
-                #     except Exception as e2:
-                #         st.error(f"Regular bar chart failed: {e2}")
+            elif chart_type == "histogram" and numeric_cols:
+                fig = px.histogram(df_clean, x=numeric_cols[0], nbins=min(20, len(df_clean)//5 + 5),
+                                   title=f"Distribution of {numeric_cols[0].replace('_', ' ').title()}")
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
 
-                # METHOD 3: Use Plotly as backup
-                try:
+            elif chart_type == "scatter" and len(numeric_cols) >= 2:
+                color_col = categorical_cols[0] if categorical_cols else None
+                fig = px.scatter(df_clean, x=numeric_cols[0], y=numeric_cols[1], color=color_col,
+                                 title=f"{numeric_cols[1].replace('_', ' ').title()} vs {numeric_cols[0].replace('_', ' ').title()}")
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
 
-                    # Sort the DataFrame by the numeric column in descending order
-                    df_sorted = df.sort_values(by=num_col, ascending=True)
+            elif chart_type == "none":
+                st.info("Data is best viewed in table format")
+                st.dataframe(df_clean, use_container_width=True)
 
-                    fig = px.bar(df_sorted, x=num_col, y=cat_col, orientation='h',
-                                 title=f"{num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}")
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception as e3:
-                    st.error(f"All chart methods failed: {e3}")
-                    st.dataframe(df, use_container_width=True)
+            else:  # Default to bar chart - ensure we always create a chart if possible
+                if categorical_cols and numeric_cols:
+                    df_sorted = df_clean.sort_values(by=numeric_cols[0], ascending=False)
+                    fig = px.bar(df_sorted, x=categorical_cols[0], y=numeric_cols[0],
+                                 title=f"{numeric_cols[0].replace('_', ' ').title()} by {categorical_cols[0].replace('_', ' ').title()}")
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
+                elif numeric_cols and len(numeric_cols) >= 2:
+                    # If no categorical columns, create scatter plot with numeric columns
+                    fig = px.scatter(df_clean, x=numeric_cols[0], y=numeric_cols[1],
+                                     title=f"{numeric_cols[1].replace('_', ' ').title()} vs {numeric_cols[0].replace('_', ' ').title()}")
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
+                elif numeric_cols:
+                    # Single numeric column - create histogram
+                    fig = px.histogram(df_clean, x=numeric_cols[0], nbins=min(20, len(df_clean)//5 + 5),
+                                       title=f"Distribution of {numeric_cols[0].replace('_', ' ').title()}")
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{hash(question)}")
+                else:
+                    st.dataframe(df_clean, use_container_width=True)
 
-                return
+        except Exception as e:
+            st.error(f"Visualization error: {e}")
+            st.dataframe(df_clean, use_container_width=True)
 
-        # Default fallback
-        if len(categorical_cols) >= 1 and len(numeric_cols) >= 1:
-            cat_col = categorical_cols[0]
-            num_col = numeric_cols[0]
+        st.caption(f"Total records: {len(df_clean)}")
 
-            try:
-                chart_data = df.set_index(cat_col)[num_col].sort_values(ascending=False)
-                st.bar_chart(chart_data, height=400)
-                st.caption(f"📊 {num_col.replace('_', ' ').title()} by {cat_col.replace('_', ' ').title()}")
-            except Exception as e:
-                st.error(f"Fallback chart failed: {e}")
-                st.dataframe(df, use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
-            st.caption("📋 Data results")
+    def generate_insights(self, df: pd.DataFrame, question: str) -> str:
+        """
+        Generate AI-powered actionable insights as if from a data analyst
+        """
+        if df.empty:
+            return "No data available for analysis."
 
-        st.caption(f"Total records: {len(df)}")
+        try:
+            # Prepare data summary for AI
+            numeric_cols = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
+            categorical_cols = df.select_dtypes(include=['object', 'string']).columns.tolist()
+
+            # Get basic stats
+            data_summary = {
+                "total_records": len(df),
+                "columns": list(df.columns),
+                "numeric_columns": numeric_cols,
+                "categorical_columns": categorical_cols,
+            }
+
+            # Add statistical summary for numeric columns
+            if numeric_cols:
+                for col in numeric_cols[:2]:  # Limit to first 2 numeric columns
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    data_summary[f"{col}_stats"] = {
+                        "mean": float(df[col].mean()) if not df[col].isna().all() else 0,
+                        "max": float(df[col].max()) if not df[col].isna().all() else 0,
+                        "min": float(df[col].min()) if not df[col].isna().all() else 0
+                    }
+
+            # Add top categories for categorical columns
+            if categorical_cols:
+                for col in categorical_cols[:1]:  # Limit to first categorical column
+                    top_categories = df[col].value_counts().head(3).to_dict()
+                    data_summary[f"{col}_top_values"] = top_categories
+
+            # Sample of actual data
+            sample_data = df.head(3).to_dict('records') if not df.empty else []
+
+            insight_prompt = f"""
+            You are a senior data analyst providing actionable business insights.
+            
+            User Question: "{question}"
+            
+            Data Analysis Results:
+            {json.dumps(data_summary, indent=2)}
+            
+            Sample Data:
+            {json.dumps(sample_data, indent=2)}
+            
+            {config.EXPLANATION_GUIDELINE}
+            """
+
+            request_body = {
+                "prompt": f"System: {insight_prompt} Assistant:",
+                "max_gen_len": 400,
+                "temperature": 0.1,  # Lower temperature for more consistent formatting
+                "top_p": 0.8          # Lower top_p for more focused responses
+            }
+
+            response = self.bedrock_client.invoke_model(
+                modelId=config.BEDROCK_MODEL_ID,
+                body=json.dumps(request_body),
+                contentType='application/json'
+            )
+
+            response_body = json.loads(response['body'].read())
+            ai_insights = response_body['generation'].strip()
+
+
+            return ai_insights
+
+        except Exception as e:
+            # Fallback to basic insights if AI fails
+            return f"Not enough information to do a reasonable analysis."
 
     @staticmethod
     def athena_create_chart_debug(df: pd.DataFrame, question: str):
@@ -398,7 +554,7 @@ class AthenaChatbotAgent:
 # ---------------------- Test Functions -----------------------
 def test_generate_analysis():
     """Test function to verify generate_analysis works"""
-    print("🧪 Testing generate_analysis method...")
+    print("Testing generate_analysis method...")
 
     try:
         # Create an instance of your agent
@@ -407,14 +563,14 @@ def test_generate_analysis():
 
         # Test with a simple question
         test_question = "Show me the top 5 users by total sales"
-        print(f"🤔 Testing question: {test_question}")
+        print(f"Testing question: {test_question}")
 
         # Call the method
         result = agent.generate_analysis(test_question)
         print("✅ generate_analysis completed")
 
         # Print the results
-        print("\n📋 RESULTS:")
+        print("\nRESULTS:")
         print("=" * 50)
 
         if isinstance(result, dict):
@@ -453,17 +609,17 @@ def test_generate_analysis():
 
 def test_athena_chatbot_agent():
     """Comprehensive test function to verify all AthenaChatbotAgent methods work"""
-    print("🧪 Starting comprehensive AthenaChatbotAgent test...")
+    print("Starting comprehensive AthenaChatbotAgent test...")
     print("=" * 60)
 
     try:
         # Test 1: Agent Initialization
-        print("\n1️⃣ Testing Agent Initialization...")
+        print("\n1: Testing Agent Initialization...")
         agent = AthenaChatbotAgent()
         print("✅ Agent initialized successfully")
 
         # Test 2: Generate Analysis
-        print("\n2️⃣ Testing generate_analysis method...")
+        print("\n2: Testing generate_analysis method...")
         test_question = "Show me the top 5 users by total sales"
         print(f"🤔 Testing question: {test_question}")
 
@@ -499,7 +655,7 @@ def test_athena_chatbot_agent():
 
         # Test 3: Execute Athena Query (if we have a valid SQL query)
         if sql_query:
-            print("\n3️⃣ Testing execute_athena_query method...")
+            print("\n3: Testing execute_athena_query method...")
             try:
                 df, execution_id = agent.execute_athena_query(sql_query)
                 print(f"✅ Athena query executed successfully")
@@ -524,7 +680,7 @@ def test_athena_chatbot_agent():
             execution_id = None
 
         # Test 4: Create Chart (replaced summary stats)
-        print("\n4️⃣ Testing create_chart method...")
+        print("\n4: Testing create_chart method...")
         if df is not None and not df.empty:
             try:
                 print("✅ Chart creation test - displaying chart...")
@@ -547,12 +703,12 @@ def test_athena_chatbot_agent():
                 print(f"❌ Empty DataFrame chart test failed: {e}")
 
         # Test 5: Full Process Question Method
-        print("\n5️⃣ Testing process_question method (full workflow)...")
+        print("\n5: Testing process_question method (full workflow)...")
         try:
             full_result = agent.process_question(test_question)
             print("✅ process_question completed successfully")
 
-            print("\n🎯 FULL PROCESS RESULTS:")
+            print("\nFULL PROCESS RESULTS:")
             print("-" * 50)
             print(f"Analysis keys: {list(full_result.get('analysis', {}).keys())}")
             print(f"SQL Query length: {len(full_result.get('sql_query', ''))}")
@@ -581,7 +737,7 @@ def test_athena_chatbot_agent():
             traceback.print_exc()
 
         # Test 6: Edge Cases
-        print("\n6️⃣ Testing edge cases...")
+        print("\n6: Testing edge cases...")
 
         # Test with empty question
         try:
@@ -600,7 +756,7 @@ def test_athena_chatbot_agent():
             print(f"⚠️ Complex question test failed: {e}")
 
         print("\n" + "=" * 60)
-        print("🎉 COMPREHENSIVE TEST COMPLETED!")
+        print("COMPREHENSIVE TEST COMPLETED!")
         print("✅ Check the results above for any issues")
         print("=" * 60)
 
@@ -656,7 +812,7 @@ def test_static_methods():
 
     # Test different chart types with various questions
     try:
-        print("\n🎨 Testing different chart scenarios...")
+        print("\nTesting different chart scenarios...")
 
         # Time series data
         time_data = pd.DataFrame({
@@ -670,7 +826,7 @@ def test_static_methods():
         single_metric = pd.DataFrame({
             'total_revenue': [150000]
         })
-        print("\n💰 Single metric test:")
+        print("\nSingle metric test:")
         AthenaChatbotAgent.create_chart(single_metric, "what is the total revenue")
 
         print("✅ All chart scenario tests passed")
@@ -683,7 +839,7 @@ def test_static_methods():
 if __name__ == "__main__":
 
     # Test inserts
-    print(f"📌 Invoking model ID: {config.BEDROCK_MODEL_ID}")  # check if model pulls
+    print(f"Invoking model ID: {config.BEDROCK_MODEL_ID}")  # check if model pulls
 
     # Clean the system prompt - remove extra newlines and format properly
     test_cleaned_system_prompt = config.SYSTEM_PROMPT.strip().replace('\n\n', ' ').replace('\n', ' ')
@@ -705,4 +861,4 @@ if __name__ == "__main__":
     # Static methods test
     test_static_methods()
 
-    print(f"\n🏁 Overall test result: {'PASSED' if success else 'FAILED'}")
+    print(f"\nOverall test result: {'PASSED' if success else 'FAILED'}")

@@ -1,33 +1,38 @@
 {
+  "database": "dummy_sales_data",
   "tables": [
     {
-      "separator": "table_1",
-      "name": "dummy_sales_data.users",
-      "schema": "CREATE TABLE dummy_sales_data.users (user_id int, user_name character varying(200), email character varying(200), signup_date date, country character varying(200) );",
+      "separator": "users_tbl",
+      "name": "users",
       "description": "This table stores information about users including their registration details and location.",
       "columns": [
         {
           "name": "user_id",
+          "schema": "int (primary key)",
           "description": "unique identifier for users, primary key",
           "synonyms": ["user id", "customer id", "id"]
         },
         {
           "name": "user_name",
+          "schema": "string",
           "description": "full name of the user",
           "synonyms": ["name", "customer name", "user name"]
         },
         {
           "name": "email",
+          "schema": "string",
           "description": "email address of the user",
           "synonyms": ["email address", "contact email"]
         },
         {
           "name": "signup_date",
+          "schema": "date (use DATE 'YYYY-MM-DD' for comparisons)",
           "description": "date when user registered/signed up",
           "synonyms": ["registration date", "sign up date", "joined date"]
         },
         {
           "name": "country",
+          "schema": "string",
           "description": "country where the user is located",
           "synonyms": ["location", "region", "customer country"]
         }
@@ -44,33 +49,37 @@
       ]
     },
     {
-      "separator": "table_2",
-      "name": "dummy_sales_data.sales",
-      "schema": "CREATE TABLE dummy_sales_data.sales (record_id int, user_id int, record_date date, sale_amount_usd decimal(10,2), product_category character varying(200) );",
+      "separator": "sales_tbl",
+      "name": "sales",
       "description": "This table stores sales transaction records with amounts and product categories.",
       "columns": [
         {
           "name": "record_id",
+          "schema": "int (primary key)",
           "description": "unique identifier for sales records, primary key",
           "synonyms": ["record id", "sale id", "transaction id"]
         },
         {
           "name": "user_id",
+          "schema": "int (foreign key to users.user_id)",
           "description": "foreign key reference to users table",
           "synonyms": ["user id", "customer id"]
         },
         {
           "name": "record_date",
+          "schema": "date (use DATE 'YYYY-MM-DD' for comparisons)",
           "description": "date when the sale transaction occurred",
           "synonyms": ["sale date", "transaction date", "purchase date"]
         },
         {
           "name": "sale_amount_usd",
+          "schema": "decimal(10,2)",
           "description": "monetary amount of the sale in USD",
           "synonyms": ["sale amount", "revenue", "transaction amount", "purchase amount"]
         },
         {
           "name": "product_category",
+          "schema": "string (values: Software, Service, Hardware)",
           "description": "category of product sold, values: Software, Hardware, Service",
           "synonyms": ["category", "product type", "service type"]
         }
@@ -91,33 +100,37 @@
       ]
     },
     {
-      "separator": "table_3",
-      "name": "dummy_sales_data.contracts",
-      "schema": "CREATE TABLE dummy_sales_data.contracts (record_id int, user_id int, record_date date, contract_value_usd decimal(10,2), contract_type character varying(200) );",
+      "separator": "contracts_tbl",
+      "name": "contracts",
       "description": "This table stores contract information including values and contract types.",
       "columns": [
         {
           "name": "record_id",
+          "schema": "int (primary key)",
           "description": "unique identifier for contract records, primary key",
           "synonyms": ["record id", "contract id"]
         },
         {
           "name": "user_id",
+          "schema": "int (foreign key to users.user_id)",
           "description": "foreign key reference to users table",
           "synonyms": ["user id", "customer id"]
         },
         {
-          "name": "record_date",
+          "name": "contract_date",
+          "schema": "date (use DATE 'YYYY-MM-DD' for comparisons)",
           "description": "date when the contract was created/signed",
           "synonyms": ["contract date", "signing date", "agreement date"]
         },
         {
           "name": "contract_value_usd",
+          "schema": "decimal(10,2)",
           "description": "monetary value of the contract in USD",
           "synonyms": ["contract value", "contract amount", "deal value"]
         },
         {
           "name": "contract_type",
+          "schema": "string",
           "description": "type of contract, values: Monthly, Annual, One-Time",
           "synonyms": ["contract type", "agreement type", "subscription type"]
         }
@@ -134,33 +147,37 @@
       ]
     },
     {
-      "separator": "table_4",
-      "name": "dummy_sales_data.invoices",
-      "schema": "CREATE TABLE dummy_sales_data.invoices (record_id int, user_id int, record_date date, invoice_amount_usd decimal(10,2), status character varying(200) );",
+      "separator": "invoices_tbl",
+      "name": "invoices",
       "description": "This table stores invoice information including amounts and payment status.",
       "columns": [
         {
           "name": "record_id",
+          "schema": "int (primary key)",
           "description": "unique identifier for invoice records, primary key",
           "synonyms": ["record id", "invoice id", "bill id"]
         },
         {
           "name": "user_id",
+          "schema": "int (foreign key to users.user_id)",
           "description": "foreign key reference to users table",
           "synonyms": ["user id", "customer id"]
         },
         {
-          "name": "record_date",
+          "name": "invoice_date",
+          "schema": "date (use DATE 'YYYY-MM-DD' for comparisons)",
           "description": "date when the invoice was created/issued",
           "synonyms": ["invoice date", "bill date", "issue date"]
         },
         {
           "name": "invoice_amount_usd",
+          "schema": "decimal(10,2)",
           "description": "monetary amount of the invoice in USD",
           "synonyms": ["invoice amount", "bill amount", "amount due"]
         },
         {
-          "name": "status",
+          "name": "payment_status",
+          "schema": "string",
           "description": "payment status of invoice, values: Paid, Unpaid, Overdue",
           "synonyms": ["payment status", "invoice status", "bill status"]
         }

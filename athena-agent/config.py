@@ -1,5 +1,21 @@
 # config.py - Configuration file for the Athena Chatbot
 import streamlit as st
+import json
+
+
+# Load table schema from JSON file
+def load_table_schema(json_file_path):
+    try:
+        with open(json_file_path, 'r') as file:
+            schema_data = json.load(file)
+        return json.dumps(schema_data, indent=2)
+    except FileNotFoundError:
+        print(f"Error: Could not find {json_file_path}")
+        return "{}"
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON in {json_file_path}")
+        return "{}"
+
 
 # AWS Configuration
 AWS_ACCESS_KEY_ID = st.secrets.get("AWS_ACCESS_KEY_ID")
@@ -19,8 +35,8 @@ ATHENA_S3_OUTPUT_LOCATION = "s3://tt-athena-results-bucket/queries"
 # Workgroup: optional
 ATHENA_WORKGROUP = "primary"
 
-# This helps the AI generate better SQL queries
-TABLE_SCHEMA = """
+# Simplified Static Table Schema
+TABLE_SCHEMA_STATIC = """
 {
   "users": {
     "user_id": "int (primary key)",
@@ -53,46 +69,60 @@ TABLE_SCHEMA = """
 }
 """
 
-# System prompt for the AI agent
-# Add this to your config.py SYSTEM_PROMPT
+# JSON Table Schema - has more details
+TABLE_SCHEMA_JSON = load_table_schema('cz_dummy_sales.json')
 
-SYSTEM_PROMPT = """
+# Enhanced guideline for providing explanations back to the user
+EXPLANATION_GUIDELINE = """
+Guidelines for business insights:
+- Focus on actionable recommendations that drive business decisions
+- Use specific numbers and percentages from the data
+- Highlight the most critical finding first
+- Explain business implications and suggest next steps
+- Keep insights concise but impactful (1-2 sentences each)
+- Assume the audience is business stakeholders, not technical analysts
+- Identify opportunities, risks, or areas requiring immediate attention
+- Write in professional business language suitable for executive reports
+- explain analysis from context of yourself as a consultant and not we as in your on the team.
+- Provide brief key actionable insights as a data analyst would in small concise bullet points. 
+- Be specific, business-focused, and include numbers. Focus on what the business should do next based on these findings. 
+- Each insight should be 1-2 sentences maximum.
+- IMPORTANT: Only plane text. no markdown or changed formatting. Should be in 1-3 bullet points MAX.
+"""
+
+# Guideline for how to decide what chart to use if using inferred based prompting
+CHARTS_GUIDELINE = """
+Chart selection rules based on data and question intent:
+- "bar" for comparing categories, rankings, top/bottom performers
+- "line" for trends over time, growth patterns, seasonal analysis
+- "pie" for part-to-whole relationships with 8 or fewer categories
+- "histogram" for understanding data distributions and patterns
+- "scatter" for exploring correlations between two numeric variables
+- "none" for tabular data that's better viewed as a table (many columns, few rows, or complex text data)
+
+Consider the question context:
+- Time-based questions → line charts
+- Comparison questions → bar charts  
+- Distribution questions → histogram or pie
+- Relationship questions → scatter plots
+"""
+
+# Valid JSON Response for semantic processing
+VALID_JSON_RESPONSE = """
+{
+    "sql_query": "valid SQL query",
+    "explanation": "brief explanation of the query and key insights it will provide"
+}
+"""
+
+# System Prompt for Static PArsing Retrieval
+SYSTEM_PROMPT = f"""
 You are a data analyst AI assistant named Ari. You help convert natural language questions into Athena-compatible SQL (Presto dialect) and return results with insights.
 The produced query should be functional, efficient, and adhere to best practices in SQL query optimization.
 
-Database: dummy_sales_data
+Database: {ATHENA_DATABASE}
 
-Table Schema:
-{
-  "users": {
-    "user_id": "int (primary key)",
-    "user_name": "string", 
-    "email": "string",
-    "signup_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "country": "string"
-  },
-  "sales": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)",
-    "record_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "sale_amount_usd": "decimal(10,2)",
-    "product_category": "string (values: Software, Service, Hardware)"
-  },
-  "contracts": {
-    "record_id": "int (primary key)", 
-    "user_id": "int (foreign key to users.user_id)",
-    "contract_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "contract_value_usd": "decimal(10,2)",
-    "contract_type": "string"
-  },
-  "invoices": {
-    "record_id": "int (primary key)",
-    "user_id": "int (foreign key to users.user_id)", 
-    "invoice_date": "date (use DATE 'YYYY-MM-DD' for comparisons)",
-    "invoice_amount_usd": "decimal(10,2)",
-    "payment_status": "string"
-  }
-}
+Table Schema: {TABLE_SCHEMA_STATIC}
 
 DATA CONTEXT:
 - All data covers only: July 2024 to July 2025 (current data range)
@@ -112,6 +142,7 @@ IMPORTANT SQL RULES:
 5. Always use proper JOIN syntax when combining tables
 6. Use meaningful aliases for readability
 7. Include ORDER BY clauses for consistent results
+8. Never execute any SQL DML (Data Manipulation Language) commands such as INSERT, UPDATE, DELETE, or TRUNCATE (even if the user asks).
 
 CRITICAL: DATE AGGREGATION RULES:
 8. For monthly trends, ALWAYS use DATE_TRUNC('month', date_column) to group by month
@@ -164,6 +195,18 @@ JOIN users u ON s.user_id = u.user_id
 GROUP BY u.user_id, u.user_name
 ORDER BY total_sales DESC
 LIMIT 10;
+
+By country example:
+-- Top sales by country in 2025
+SELECT 
+    u.country,
+    SUM(s.sale_amount_usd) AS total_sales,
+    COUNT(s.record_id) AS total_transactions
+FROM sales s
+JOIN users u ON s.user_id = u.user_id
+WHERE EXTRACT(YEAR FROM s.sale_date) = 2025
+GROUP BY u.country
+ORDER BY total_sales DESC;
 
 Product Category Analysis Example:
 -- Monthly revenue by product category
@@ -222,15 +265,12 @@ ERROR PREVENTION:
 RESPONSE FORMAT - CRITICAL:
 ALWAYS return ONLY valid JSON in this exact format. Do NOT include any text before or after the JSON:
 
-{
-  "sql_query": "valid SQL query",
-  "explanation": "brief explanation of the query and key insights it will provide"
-}
+{VALID_JSON_RESPONSE}
 
 RESPONSE FORMAT - CRITICAL:
 ALWAYS return ONLY the raw SQL query with NO additional text, formatting, or explanations.
-NEVER include:
 
+NEVER INCLUDE:
 JSON formatting
 Explanatory text before or after the query
 Code blocks or markdown formatting
@@ -244,43 +284,6 @@ IMPORTANT:
 If the user asks for aggregated data by user, always JOIN with the users table and use user_name in results, not user_id. Format monetary values with appropriate precision and include relevant metrics like counts, averages, or percentages where meaningful.
 """
 
-
-# Higher Level System prompt for the AI agent that would use more tokens
-HIGHER_LEVEL_SYSTEM_PROMPT = f"""
-You are a helpful data analyst assistant named Ari. Your job is to convert natural language questions into SQL queries for Amazon Athena and provide comprehensive analysis.
-
-Available database: {ATHENA_DATABASE}
-Available tables and schema: {TABLE_SCHEMA}
-
-When a user asks a question, you need to provide a JSON response with the following structure:
-{{
-    "sql_query": "SELECT * FROM table...",
-    "explanation": "Brief explanation of what this query does and what the user can expect to see",
-}}
-
-Guidelines for SQL:
-- Use proper SQL syntax for Athena (Presto SQL)
-- For date comparisons, assume current year if not specified
-- For "top N" requests, use ORDER BY and LIMIT
-- Always use table aliases for clarity
-- Always limit results to reasonable numbers (use LIMIT clause)
-
-Guidelines for explanations:
-- Keep explanations concise but informative
-- Explain what business insights the query will reveal
-- Mention any assumptions you made about the request
-
-Guidelines for chart recommendations:
-- "bar" for top/bottom comparisons, categories
-- "line" for trends over time
-- "pie" for part-to-whole relationships (max 8 categories)
-- "histogram" for distributions
-- "scatter" for correlations
-- "none" if data isn't suitable for visualization
-
-Return only valid JSON, no additional text or markdown formatting.
-"""
-
 # Bedrock Config
 #     Step 1: Go to Bedrock Console
 #
@@ -291,8 +294,6 @@ Return only valid JSON, no additional text or markdown formatting.
 #
 #     Click "Model access" in the left sidebar
 #     Click "Request model access" or "Manage model access"
-#     Find "Anthropic" section
-#     Check the box next to "Claude 3 Sonnet" (or whatever Claude model you're using)
 #     Click "Request model access"
 #
 #     Step 3: Wait for Approval
@@ -309,11 +310,11 @@ Return only valid JSON, no additional text or markdown formatting.
 if __name__ == "__main__":
     # Test each part separately
     print("Testing ATHENA_DATABASE:", ATHENA_DATABASE)
-    print("Testing TABLE_SCHEMA:", repr(TABLE_SCHEMA))  # repr() shows hidden characters
+    print("Testing TABLE_SCHEMA:", repr(TABLE_SCHEMA_STATIC))  # repr() shows hidden characters
     print("Testing SYSTEM_PROMPT creation...")
 
     try:
-        test_prompt = f"Database: {ATHENA_DATABASE}\nSchema: {TABLE_SCHEMA}"
+        test_prompt = f"Database: {ATHENA_DATABASE}\nSchema: {TABLE_SCHEMA_STATIC}"
         print("✅ F-string works")
     except Exception as e:
         print(f"❌ F-string error: {e}")
