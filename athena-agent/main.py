@@ -52,11 +52,11 @@ with st.sidebar:
 
 with st.sidebar.expander("Example Questions"):
     st.markdown("""
-    - Show me top 5 users by contracts in June
+    - Show me top 5 users by contracts in June.
     - What are the total sales by country?
-    - Give me sales trends by month
+    - Give me sales trends by month.
     - Who are the highest performing sellers in total contracts in 2025 ytd?
-    - Show me sales data for Q1 2025
+    - Show me sales data for Q1 2025 aggregated by week.
     """)
 
 with st.sidebar.expander("Setup Required"):

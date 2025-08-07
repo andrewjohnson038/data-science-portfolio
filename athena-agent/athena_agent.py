@@ -420,7 +420,6 @@ class AthenaChatbotAgent:
             response_body = json.loads(response['body'].read())
             ai_insights = response_body['generation'].strip()
 
-
             return ai_insights
 
         except Exception as e:
