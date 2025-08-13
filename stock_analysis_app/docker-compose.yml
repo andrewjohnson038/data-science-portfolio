@@ -1,0 +1,25 @@
+# This defines the version of the Docker Compose file format.
+# '3.8' is compatible with recent Docker versions and supports most features.
+version: '3.8'
+
+services:
+  # Zookeeper service - Kafka requires Zookeeper to coordinate brokers
+  zookeeper:
+    image: wurstmeister/zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"  # Exposes Zookeeper on port 2181
+
+  # Kafka broker service
+  kafka:
+    image: wurstmeister/kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"  # Exposes Kafka on port 9092
+    environment:
+      # Tells Kafka what hostname it should advertise to clients
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      # Connection string to Zookeeper
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    depends_on:
+      - zookeeper  # Ensures Kafka starts after Zookeeper is running

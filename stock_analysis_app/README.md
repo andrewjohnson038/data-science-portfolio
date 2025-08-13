@@ -34,12 +34,20 @@ stock_analysis_app/
 ├── app_animations.py          # UI animations and styling
 ├── app_stock_grading_model.py # Stock grading algorithm implementation
 ├── app_grade_batch.py         # Batch processing for stock grading
+├── stream_stock_price.py      # Kafka Python producer streaming stock prices every 5s (not used in prod)
+├── docker-compose.yml         # Docker Compose file for Kafka + Zookeeper services (not used in prod)
 ├── ticker_list_ref.csv        # Reference list of available stock tickers
 ├── requirements.txt           # Python package dependencies
 ├── grade_model_assets.txt    # Contains model reference info
 ├── __init__.py               # Package initialization
-├── __pycache__/              # Python cache directory
 └── .streamlit/               # Streamlit configuration directory
+
+Note: at project root (if forking app dir would be under stock_analysis_app
+├── .github                              # github resources
+   └── workflows                         # github batch workflows with Github Actions
+      └── stock-app-weekly-batch         # weekly batch yml for app grades used in the grades page and throughout the app
+      
+      (home page runs grade real time, so grades may differ across other pages)   
 ```
 
 ## Setup and Installation
@@ -167,6 +175,120 @@ The application implements caching and session state strategies to optimize perf
 - Resource caching for expensive computations
 - Session state management for ticker changes & various functionality
 
+-------
+## Weekly Batches
+The app uses a weekly batch using Github Actions placed at the root of the entire portfolio directory. It cannot be placed within the project sub directory due to how Github Actions reads files.
+- Github actions is a tool within Github to run workflows. In the app, it is used for data batching.
+- Stock grades are batched weekly within the yml file. You can change the cron job section of the yml file to a different time/date if you prefer.
+- Yml example code below. Make sure this is et at the root of your directory in Github or else it will not work.
+- You will then need to set up in Github Actions in you Github to run.
+
+```
+on:
+schedule:
+# Run Weekly on Wed at 12:00 AM EST (5:00 AM UTC)
+- cron: '0 5 * * 3'
+# Allow manual triggering for testing
+workflow_dispatch:
+
+   jobs:
+   run-batch:
+   runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r stock_analysis_app/requirements.txt
+
+      - name: Run batch analysis
+        env:
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          cd stock_analysis_app
+          python app_grade_batch.py
+```
+
+
+-------
+
+## For KAFKA Streaming Stock Price Integration With Docker (Optional - Read Note)
+If you'd like to add into the app the current price streaming every 5 seconds with Kafka & Docker, or test in local, follow the steps below:
+
+IMPORTANT NOTE: The app does not use this in production as Streamlit does not support streaming a specific element. You would need to move from streamlit to implement.
+
+### Kafka Stock Price Streaming — Local & EC2 Setup Guide
+
+This guide walks you through how to:
+
+- Set up Kafka locally using Docker Compose
+- Run a Python Kafka producer to stream stock prices
+- Optionally deploy everything on an EC2 instance
+
+---
+
+## 🐳 Install Docker
+
+1. Go to [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
+2. Download Docker Desktop (choose Apple or Intel chip)
+3. Install and **launch Docker Desktop**
+4. Verify installation:
+
+### macOS
+```bash
+docker --version
+docker compose version
+```
+
+### Ubuntu (EC2 or local)
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+```
+Log out and log back in or reboot to apply the group change.
+
+### File Structure
+```bash
+stock_analysis_app/
+├── stream_stock_price.py       # Python Kafka producer
+├── requirements.txt
+└── docker-compose.yml          # Kafka + Zookeeper setup
+```
+
+### Start Kafka Locally with Docker
+Ensure docker-compose.yml is in this directory, then:
+```bash
+docker compose up -d
+```
+
+Check containers:
+```bash
+docker ps
+```
+Stop them later with:
+```bash
+docker compose down
+```
+
+You can now run the script python stream_stock_price.py to test in terminal.
+- To stop it: Ctrl + C
+
+----------
 
 ## License
 
