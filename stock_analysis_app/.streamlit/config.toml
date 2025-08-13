@@ -1,0 +1,11 @@
+[theme]
+# Bright blue for interactive elements (lighter than before for better contrast)
+primaryColor = "#4dabf7"
+# Very very light red for main background (e.g. pale pink)
+backgroundColor = "#fff0f0"
+# Sidebar color same as normal Streamlit (white)
+secondaryBackgroundColor = "#f0f0f0"
+# Dark text for readability on light backgrounds
+textColor = "#000000"
+# Font family for all text
+font = "sans serif"
