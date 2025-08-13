@@ -94,7 +94,7 @@ with add_con:
 
     with left_col:
         # Add to Watch List
-        if st.button("Add to Watch list"):
+        if st.button("Add to Watchlist"):
             data.upsert_watchlist_to_s3_csv(
                 selected_stock,
                 stock_industry,
