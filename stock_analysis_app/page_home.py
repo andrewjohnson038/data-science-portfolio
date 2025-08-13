@@ -90,7 +90,7 @@ stock_industry = selected_stock_metrics_df['Industry'].values[0]
 add_con = st.container()
 
 with add_con:
-    left_col, right_col, dummy = st.columns([1.5, 1.5, 8])
+    left_col, right_col, dummy = st.columns([2, 2, 8])
 
     with left_col:
         # Add to Watch List
