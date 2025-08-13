@@ -1,15 +1,11 @@
 [theme]
 # Streamlit's signature red for interactive elements
 primaryColor = "#ff4b4b"
-
 # dark background
 backgroundColor = "#1a1a1a"
-
 # Medium gray for sidebar with strong contrast against main background
 secondaryBackgroundColor = "#2d2d2d"
-
 # Rich dark gray for optimal text contrast and professionalism
 textColor = "#ffffff"
-
 # Modern, clean font stack for financial data clarity
-font = "Inter, system-ui, -apple-system, sans-serif"
+font = "sans-serif"
