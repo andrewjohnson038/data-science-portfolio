@@ -90,7 +90,7 @@ stock_industry = selected_stock_metrics_df['Industry'].values[0]
 add_con = st.container()
 
 with add_con:
-    left_col, right_col, dummy = st.columns([1, 1, 6])
+    left_col, right_col, dummy = st.columns([2, 2, 10])
 
     with left_col:
         # Add to Watch List
@@ -513,7 +513,7 @@ def render_home_page_data(selected_stock: str):
                 trend_icon = neutral_icon  # Neutral trend icon if the difference is 0
 
             # Write avg price change % over last 10 yrs to sidebar
-            kpi_col3.write("AVG YOY Price Change (Last 10 Yrs):")
+            kpi_col3.write("AVG YOY $ Change (Last 10 Yrs):")
             yoy_avg_close_price_change = (
                     "$" + str(avg_price_chg_dollar_amt) + " | " + str(yoy_avg_close_price_change) + "% " + trend_icon)
 
@@ -522,7 +522,7 @@ def render_home_page_data(selected_stock: str):
                 # Write the value to the app for today in KPI format if the data is available
                 kpi_col3.markdown(yoy_avg_close_price_change, unsafe_allow_html=True)
             else:
-                kpi_col3.warning(f"AVG YOY Price Change (Last 10 Yrs): Data Not Available")
+                kpi_col3.warning(f"AVG YOY $ Change (Last 10 Yrs): Data Not Available")
     # ------------------------------ Add KPI for Avg YOY price change over last 10 years from yesterday -----------------------------------------
 
     # -----------------------------------  Add KPI for Forecasted Price Based on Forecast Slider ------------------------------------------------
@@ -1526,7 +1526,7 @@ def render_home_page_data(selected_stock: str):
         # Add Visuals into fs_c container:
         with fs_c:
             # Create two columns for fs_c
-            fs_c_col1, fs_c_col2 = fs_c.columns([7, 3])  # Use ratios to make control area width
+            fs_c_col1, fs_c_col2 = fs_c.columns([8, 3])  # Use ratios to make control area width
 
             # Write Title for Forecast Graph in col1:
             fs_c_col1.write("Forecast Graph:")
@@ -1554,19 +1554,17 @@ def render_home_page_data(selected_stock: str):
             # Create a container for metrics in col2
             fs_price_metric = fs_c_col2.container()
             with fs_price_metric:
-                # create columns for each metric in the fs_price_metric container
-                fs_price_metric_col1, fs_price_metric_col2 = fs_price_metric.columns([1, 1])
 
                 # Write metric 1 container
-                fs_price_metric1 = fs_price_metric_col1.container(border=True)
+                fs_price_metric1 = fs_price_metric.container(border=True)
                 with fs_price_metric1:
                     # Recreate KPI 4 as streamlit metric
                     fs_price_metric1.metric(f"Forecast Year: {chosen_forecasted_year}",
                                             f"${str(round(chosen_forecasted_price, 2))}",
-                                            f"{trend_difference_percentage}%")
+                                            f"{trend_difference_percentage:.0f}%")
 
                 # Write metric 2 container
-                fs_price_metric2 = fs_price_metric_col2.container(border=True)
+                fs_price_metric2 = fs_price_metric.container(border=True)
                 with fs_price_metric2:
                     # Get the average YOY forecasted price change
                     yoy_avg_fr_price_change = round(
@@ -1578,14 +1576,14 @@ def render_home_page_data(selected_stock: str):
                         (yoy_avg_fr_price_change / selected_stock_regular_market_price) * 100, 0)
 
                     # Add a metric for avg forecast price change from current price YOY dynamically with sidebar
-                    fs_price_metric2.metric(f"YOY Change Average:", f"${str(round(yoy_avg_fr_price_change, 2))}",
-                                            f"{yoy_avg_fr_price_change_pct}%")
+                    fs_price_metric2.metric(f"YOY $ Change Average:", f"${str(round(yoy_avg_fr_price_change, 2))}",
+                                            f"{yoy_avg_fr_price_change_pct:.0f}%")
 
             # Write Title for Forecast Components in col2:
             fs_c_col2.write("Forecast Components:")
 
             # Write Forecast Components Container in col2
-            fs_components_c = fs_c_col2.container(border=True, height=454)
+            fs_components_c = fs_c_col2.container(border=True, height=307)
             with fs_components_c:
                 # Plot the Prophet forecast components:
                 fig2 = selected_stock_trained_model.plot_components(
@@ -1676,12 +1674,12 @@ def render_home_page_data(selected_stock: str):
                     with st.container(border=True, height=135):
                         st.metric("Score Achieved",
                                   f"{total_score:.1f} / {total_max_score:.0f}",
-                                  delta=f"{grade_score_difference:+.1f} From Avg Model Score")
+                                  delta=f"{grade_score_difference:+.1f} From Avg Score")
                 with col2:
                     with st.container(border=True, height=135):
                         st.metric("Model Grade",
                                   f"{selected_stock_grade}",
-                                  delta=f"{grade_difference:+.0f} From Avg Model Grade")
+                                  delta=f"{grade_difference:+.0f} From Avg Grade")
                 with col3:
                     with st.container(border=True, height=135):
                         # Define grade order from best to worst
@@ -1724,6 +1722,10 @@ def render_home_page_data(selected_stock: str):
                             fliersize=3,
                             orient='h'
                         )
+
+                        # set outside border to white
+                        for spine in ax.spines.values():
+                            spine.set_color(text_color)  # Change to white/theme color
 
                         # Add a vertical yellow line for selected stock's grade
                         ax.axvline(ss_grade_numeric, color='#DAA520', linestyle='--', linewidth=2,
