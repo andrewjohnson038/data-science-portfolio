@@ -95,6 +95,25 @@ class GradeBatchMethods:
                     ind_avg_df = data.get_industry_averages_df()
                     mc_sim_df = data.get_monte_carlo_df(price_hist_df, 1000, 252)
 
+                    # DEBUG: Check and fix MultiIndex columns
+                    print(f"Processing {ticker}")
+                    print(f"stock_metrics_df columns: {stock_metrics_df.columns.tolist()}")
+                    print(f"stock_metrics_df column type: {type(stock_metrics_df.columns)}")
+                    print(f"ind_avg_df columns: {ind_avg_df.columns.tolist()}")
+                    print(f"ind_avg_df column type: {type(ind_avg_df.columns)}")
+
+                    # Fix MultiIndex if it exists
+                    if isinstance(stock_metrics_df.columns, pd.MultiIndex):
+                        print(f"Flattening stock_metrics_df MultiIndex columns")
+                        stock_metrics_df.columns = stock_metrics_df.columns.droplevel(1)
+
+                    if isinstance(ind_avg_df.columns, pd.MultiIndex):
+                        print(f"Flattening ind_avg_df MultiIndex columns")
+                        ind_avg_df.columns = ind_avg_df.columns.droplevel(1)
+
+                    print(f"After flattening - stock_metrics_df columns: {stock_metrics_df.columns.tolist()}")
+                    print(f"After flattening - ind_avg_df columns: {ind_avg_df.columns.tolist()}")
+
                     # Calculate grade and score
                     score, grade, _, _, _ = StockGradeModel.calculate_grades(
                         ticker, stock_metrics_df, forecasted_df, ind_avg_df,
@@ -293,12 +312,12 @@ if __name__ == "__main__":
             print(f"❌ Error connecting to AWS: {str(e)}")
 
     # Run AWS connection test
-    print("🔌 Testing AWS connection...")
+    print("Testing AWS connection...")
     test_aws_connection()
 
     # Run test batch using test from list method if wanting to test by list
     # test_ticker_list = ["AAPL", "MSFT", "AMZN"]
-    # print("🧪 Running test batch...")
+    # print("Running test batch...")
     # test_results_df = GradeBatchMethods.batch_process_from_list_test(
     #     test_ticker_list, batch_size=6, rate_limit_delay=0
     # )
