@@ -127,8 +127,13 @@ class StockGradeModel:
         percentage_above_9_percent = (simulations_above_9_percent.sum() / mc_simulations_num) * 100
 
         # ------- Merged Avg DFs
+
         # Merge the two DataFrames on the 'Industry' column
         industry_avg_merged_df = pd.merge(stock_metrics_df, ind_avg_df, on='Industry', how='left')
+
+        # Flatten MultiIndex columns if they exist
+        if isinstance(industry_avg_merged_df.columns, pd.MultiIndex):
+            industry_avg_merged_df.columns = industry_avg_merged_df.columns.droplevel(1)
 
         # Reduce fields to company, industry and it's averages
         merged_df = industry_avg_merged_df[['Company Name', 'Industry', 'Average P/E Ratio', 'Average ROE']]
@@ -555,6 +560,7 @@ if __name__ == "__main__":
             # The 30s and .4f are format specifiers used to control how the output is displayed.
             # 30s: This specifies that the metric (which is a string) should be printed with a width of 30 characters
             # .2f: This specifies formatting values to two decimal points as a float type.
+
 
     # Test in Streamlit (Uncomment)
 #     if score is not None:
