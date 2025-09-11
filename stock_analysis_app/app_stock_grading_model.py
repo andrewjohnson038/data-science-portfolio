@@ -58,8 +58,8 @@ class StockGradeModel:
         model_prophet_forecast_percent_difference = (model_prophet_forecast_difference / current_price)
 
         # ------- SPY vs Selected Ticker Compare (3 years of data)
-        spy_compare_df = yf.download('SPY', dv.three_yrs_ago, dv.today)
-        selected_ticker_compare_df = yf.download(ticker, dv.three_yrs_ago, dv.today)  # Note: directly using _df suffix here
+        spy_compare_df = yf.download('SPY', dv.three_yrs_ago, dv.today, auto_adjust=False)
+        selected_ticker_compare_df = yf.download(ticker, dv.three_yrs_ago, dv.today, auto_adjust=False)
 
         # Reset index to make 'Date' a column if not already
         spy_compare_df = spy_compare_df.reset_index()
