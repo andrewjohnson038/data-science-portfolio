@@ -97,7 +97,7 @@ class GradeBatchMethods:
 
                     # Add fallback if an average field is missing from index from web scraping
                     try:
-                        # Load your complete industry averages CSV
+                        # Load the complete industry averages CSV
                         complete_df = pd.read_csv('industry_avgs.csv')
 
                         # Find all "Average" columns that should exist
@@ -123,6 +123,7 @@ class GradeBatchMethods:
 
                     except Exception as e:
                         print(f"Failed to load fallback CSV: {e}")
+
                         # Add default values for any missing Average columns as last resort
                         expected_columns = ['Average P/E Ratio', 'Average ROE']  # Add more as needed
                         for col in expected_columns:
