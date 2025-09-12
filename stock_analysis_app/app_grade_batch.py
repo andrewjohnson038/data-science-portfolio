@@ -95,6 +95,42 @@ class GradeBatchMethods:
                     ind_avg_df = data.get_industry_averages_df()
                     mc_sim_df = data.get_monte_carlo_df(price_hist_df, 1000, 252)
 
+                    # Add fallback if an average field is missing from index from web scraping
+                    try:
+                        # Load your complete industry averages CSV
+                        complete_df = pd.read_csv('industry_avgs.csv')
+
+                        # Find all "Average" columns that should exist
+                        expected_avg_columns = [col for col in complete_df.columns if col.startswith('Average')]
+                        missing_avg_columns = [col for col in expected_avg_columns if col not in ind_avg_df.columns]
+
+                        if missing_avg_columns:
+                            print(f"Warning: Missing Average columns for {ticker}: {missing_avg_columns}")
+                            print("Loading missing columns from fallback CSV...")
+
+                            # Get the missing columns from CSV
+                            fallback_columns = ['Industry'] + missing_avg_columns
+                            fallback_data = complete_df[fallback_columns]
+
+                            # Merge with existing data to add missing Average columns
+                            ind_avg_df = pd.merge(
+                                ind_avg_df,
+                                fallback_data,
+                                on='Industry',
+                                how='left'
+                            )
+                            print(f"Successfully added {len(missing_avg_columns)} Average columns from CSV")
+
+                    except Exception as e:
+                        print(f"Failed to load fallback CSV: {e}")
+                        # Add default values for any missing Average columns as last resort
+                        expected_columns = ['Average P/E Ratio', 'Average ROE']  # Add more as needed
+                        for col in expected_columns:
+                            if col not in ind_avg_df.columns:
+                                default_value = 15.0 if 'P/E' in col else 10.0 if 'ROE' in col else 0.0
+                                ind_avg_df[col] = default_value
+                                print(f"Added default {col} column with value {default_value}")
+
                     # DEBUG: Check and fix MultiIndex columns
                     print(f"Processing {ticker}")
                     print(f"stock_metrics_df columns: {stock_metrics_df.columns.tolist()}")

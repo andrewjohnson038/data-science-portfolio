@@ -1195,7 +1195,10 @@ if __name__ == "__main__":
     # Test the load_curr_stock_metrics method
     print("\nTesting load_curr_stock_metrics method...")
     stock_metrics = AppData.load_curr_stock_metrics('AAPL')  # Default to AAPL if no ticker is provided
-    print(f"Stock metrics for AAPL:\n{stock_metrics[['PE Ratio', 'PEG Ratio', 'Market Cap']].head()}")
+    print(f"Stock metrics for AAPL:\n{stock_metrics}")
+    for column in stock_metrics.columns:
+        values = stock_metrics[column].tolist()
+        print(f"{column}: {values}")
 
     # Test the calculate_sharpe_ratio method
     print("\nTesting calculate_sharpe_ratio method...")
@@ -1245,6 +1248,7 @@ if __name__ == "__main__":
     industry_avg_df = AppData.get_industry_averages_df()
     print(industry_avg_df.columns)
     print(industry_avg_df)
+    print(industry_avg_df.to_string())
 
     # Test the get forecasted data method
     print("\nTesting get forecasted data method...")
