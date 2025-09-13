@@ -76,7 +76,7 @@ def home_pg():
                 st.dataframe(message["data"], use_container_width=True)
 
     # Chat input
-    if prompt := st.chat_input("e.g., 'Show me top 5 users by sales in June'"):
+    if prompt := st.chat_input("e.g., 'Show me top 10 users by sales in 2025'"):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
