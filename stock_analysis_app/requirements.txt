@@ -1,5 +1,6 @@
 beautifulsoup4==4.12.3
 boto3==1.38.16
+cmdstanpy==2.36.0
 groq==0.13.1
 matplotlib==3.8.4
 numpy==1.26.4
