@@ -9,7 +9,6 @@ import requests
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing  # import lib for applying exponential smoothing line
 from bs4 import BeautifulSoup  # Import Beautiful Soup for Web Scraping
 from prophet import Prophet  # Import Prophet (META Time Series Model for Forecasting)
-import cmdstanpy  # backend for prophet model
 import boto3  # AWS client
 from io import StringIO
 
@@ -909,16 +908,11 @@ class AppData:
 
         # Function to train the model and generate forecasts
         def train_model(df_train):
-            # Ensure CmdStan backend is available
-            try:
-                cmdstanpy.install_cmdstan()
-            except Exception as e:
-                print("CmdStan installation warning:", e)
-
-            # Initialize Prophet model
+            # Fit Prophet model
             m = Prophet()
             m.fit(df_train)
 
+            # Return the trained model
             return m
 
         # Assign Variable to trained model data (the cached function)
