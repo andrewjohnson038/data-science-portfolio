@@ -238,9 +238,6 @@ class AppData:
                 ticker_obj = yf.Ticker(ticker)
                 stock_info = ticker_obj.info
 
-                # Get current PE ratio
-                pe_ratio
-
                 if not pe_ratio:
                     return None
 
@@ -542,7 +539,7 @@ class AppData:
         Apply Simple Exponential Smoothing to the stock closing prices.
 
         :param stock_data_df: price history dataset
-        :param alpha: Smoothing factor (0 < alpha <= 1) -> closer to 0 = more weight on older data. Will have a greater smoothing effect
+        :param smoothing level: Smoothing factor (0 < alpha <= 1) -> closer to 0 = more weight on older data. Will have a greater smoothing effect
         - -> closer to 1 = will have less of a smoothing effect. Will follow the actual close price of the stock more closely, resulting in less of a smoothing effect
         :return: Smoothed values
 
