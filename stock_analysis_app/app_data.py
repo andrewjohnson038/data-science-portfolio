@@ -717,167 +717,203 @@ class AppData:
     @st.cache_data(ttl=86400)  # cache data for a day
     def get_industry_averages_df():
 
-        # URL of the webpages containing ratios by industry
-        pe_url = "https://fullratio.com/pe-ratio-by-industry"
-        roe_url = "https://fullratio.com/roe-by-industry"
-
-        # Add user-agent header to mimic a browser (websites often block scraping)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-
-        # Initialize an empty list to store the extracted data
-        pe_ind_avg_data = []
-        roe_data = []
-
-        # Function to find the table on the page
-        def find_table(soup):
-            # Try to find any table first
-            table = soup.find('table')
-
-            if table is None:
-                # If no table is found, try other ways to locate it
-                tables = soup.find_all('table')
-                if tables:
-                    table = tables[0]  # Use the first table found
-                else:
-                    # Look for divs that might contain table data
-                    table_container = soup.find('div', class_='table-responsive')
-                    if table_container:
-                        table = table_container.find('table')
-
-            return table
-
-        # First scrape P/E ratios
         try:
-            # Send a GET request to the P/E URL with headers
-            response = requests.get(pe_url, headers=headers)
-            response.raise_for_status()  # Check if the request was successful
+            # Read the CSV file
+            industry_avg_df = pd.read_csv('industry_avgs.csv')
 
-            # Parse the content of the page with BeautifulSoup
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Verify the required columns exist
+            required_columns = ['Industry', 'Average P/E Ratio', 'Average ROE']
+            missing_columns = [col for col in required_columns if col not in industry_avg_df.columns]
 
-            # Find the table containing the P/E ratio data
-            table = find_table(soup)
+            if missing_columns:
+                st.error(f"CSV file is missing required columns: {', '.join(missing_columns)}")
+                return pd.DataFrame(columns=required_columns)
 
-            if table is None:
-                st.error("Could not find the P/E ratio table on the webpage. The website structure might have changed.")
-            else:
-                # Extract the table rows from the table
-                rows = table.find_all('tr')
+            # Optional: Clean the data (remove any rows with all NaN values)
+            #industry_avg_df = industry_avg_df.dropna(how='all')
 
-                if len(rows) <= 1:
-                    st.warning("Found a P/E table but it contains insufficient data.")
-                else:
-                    # Get the headers to determine column indices
-                    headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
+            return industry_avg_df
 
-                    # Find the indices for industry and PE ratio columns
-                    industry_idx = next(
-                        (i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
-                    pe_idx = next((i for i, h in enumerate(headers_row) if 'p/e' in h.lower() or 'pe' in h.lower()), 1)
+        except FileNotFoundError:
+            st.error("Error: 'industry_avgs.csv' file not found. Please ensure the file is in the correct directory.")
+            return pd.DataFrame(columns=['Industry', 'Average P/E Ratio', 'Average ROE'])
 
-                    # Loop through each row, extract the industry and P/E ratio, and store it
-                    for row in rows[1:]:  # Skip the first row, which contains column headers
-                        cols = row.find_all('td')
-
-                        if len(cols) > max(industry_idx, pe_idx):
-                            industry = cols[industry_idx].get_text(strip=True)
-                            pe_ratio_text = cols[pe_idx].get_text(strip=True)
-
-                            # Clean the PE ratio - remove any non-numeric characters except decimal point
-                            pe_ratio_text = ''.join(c for c in pe_ratio_text if c.isdigit() or c == '.')
-
-                            # Add to data list (convert P/E to float, handle missing values)
-                            try:
-                                pe_ratio = float(pe_ratio_text) if pe_ratio_text else None
-                            except ValueError:
-                                pe_ratio = None
-
-                            pe_ind_avg_data.append({
-                                'Industry': industry,
-                                'Average P/E Ratio': pe_ratio
-                            })
-
-                    # Create a pandas DataFrame to organize the P/E data
-                    industry_avg_df = pd.DataFrame(pe_ind_avg_data)
-
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching P/E data: {e}")
-            industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
         except Exception as e:
-            st.error(f"Error processing P/E data: {e}")
-            industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
+            st.error(f"Error reading CSV file: {e}")
+            return pd.DataFrame(columns=['Industry', 'Average P/E Ratio', 'Average ROE'])
 
-        # Now scrape ROE data
-        try:
-            # Send a GET request to the ROE URL with headers
-            response = requests.get(roe_url, headers=headers)
-            response.raise_for_status()  # Check if the request was successful
 
-            # Parse the content of the page with BeautifulSoup
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Find the table containing the ROE data
-            table = find_table(soup)
-
-            if table is None:
-                st.error("Could not find the ROE table on the webpage. The website structure might have changed.")
-            else:
-                # Extract the table rows from the table
-                rows = table.find_all('tr')
-
-                if len(rows) <= 1:
-                    st.warning("Found an ROE table but it contains insufficient data.")
-                else:
-                    # Get the headers to determine column indices
-                    headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
-
-                    # Find the indices for industry and ROE columns
-                    industry_idx = next(
-                        (i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
-                    roe_idx = next(
-                        (i for i, h in enumerate(headers_row) if 'roe' in h.lower() or 'return on equity' in h.lower()), 1)
-
-                    # Loop through each row, extract the industry and ROE, and store it
-                    for row in rows[1:]:  # Skip the first row, which contains column headers
-                        cols = row.find_all('td')
-
-                        if len(cols) > max(industry_idx, roe_idx):
-                            industry = cols[industry_idx].get_text(strip=True)
-                            roe_text = cols[roe_idx].get_text(strip=True)
-
-                            # Clean the ROE value - remove any non-numeric characters except decimal point
-                            # Some ROE values might be percentages, so also remove % signs
-                            roe_text = roe_text.replace('%', '')
-                            roe_text = ''.join(c for c in roe_text if c.isdigit() or c == '.' or c == '-')
-
-                            # Add to data list (convert ROE to float, handle missing values)
-                            try:
-                                roe_value = float(roe_text) if roe_text else None
-                            except ValueError:
-                                roe_value = None
-
-                            roe_data.append({
-                                'Industry': industry,
-                                'Average ROE': roe_value
-                            })
-
-                    # Create a pandas DataFrame to organize the ROE data
-                    roe_df = pd.DataFrame(roe_data)
-
-                    # Merge the P/E and ROE DataFrames on the Industry column
-                    if not industry_avg_df.empty and not roe_df.empty:
-                        industry_avg_df = pd.merge(industry_avg_df, roe_df, on='Industry', how='outer')
-                    elif not roe_df.empty:
-                        industry_avg_df = roe_df
-
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching ROE data: {e}")
-        except Exception as e:
-            st.error(f"Error processing ROE data: {e}")
-
-        return industry_avg_df
+    # Scraping legacy code
+        # # URL of the webpages containing ratios by industry
+        # pe_url = "https://fullratio.com/pe-ratio-by-industry"
+        # roe_url = "https://fullratio.com/roe-by-industry"
+        #
+        # # Add user-agent header to mimic a browser (websites often block scraping)
+        # headers = {
+        #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        #     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        #     "Accept-Language": "en-US,en;q=0.5",
+        #     "Accept-Encoding": "gzip, deflate, br",
+        #     "Connection": "keep-alive",
+        #     "Upgrade-Insecure-Requests": "1",
+        #     "Sec-Fetch-Dest": "document",
+        #     "Sec-Fetch-Mode": "navigate",
+        #     "Sec-Fetch-Site": "none",
+        #     "Cache-Control": "max-age=0",
+        # }
+        #
+        # # Initialize an empty list to store the extracted data
+        # pe_ind_avg_data = []
+        # roe_data = []
+        #
+        # # Function to find the table on the page
+        # def find_table(soup):
+        #     # Try to find any table first
+        #     table = soup.find('table')
+        #
+        #     if table is None:
+        #         # If no table is found, try other ways to locate it
+        #         tables = soup.find_all('table')
+        #         if tables:
+        #             table = tables[0]  # Use the first table found
+        #         else:
+        #             # Look for divs that might contain table data
+        #             table_container = soup.find('div', class_='table-responsive')
+        #             if table_container:
+        #                 table = table_container.find('table')
+        #
+        #     return table
+        #
+        # # First scrape P/E ratios
+        # try:
+        #     # Send a GET request to the P/E URL with headers
+        #     response = requests.get(pe_url, headers=headers, timeout=2)
+        #     response.raise_for_status()  # Check if the request was successful
+        #
+        #     # Parse the content of the page with BeautifulSoup
+        #     soup = BeautifulSoup(response.content, 'html.parser')
+        #
+        #     # Find the table containing the P/E ratio data
+        #     table = find_table(soup)
+        #
+        #     if table is None:
+        #         st.error("Could not find the P/E ratio table on the webpage. The website structure might have changed.")
+        #     else:
+        #         # Extract the table rows from the table
+        #         rows = table.find_all('tr')
+        #
+        #         if len(rows) <= 1:
+        #             st.warning("Found a P/E table but it contains insufficient data.")
+        #         else:
+        #             # Get the headers to determine column indices
+        #             headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
+        #
+        #             # Find the indices for industry and PE ratio columns
+        #             industry_idx = next(
+        #                 (i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
+        #             pe_idx = next((i for i, h in enumerate(headers_row) if 'p/e' in h.lower() or 'pe' in h.lower()), 1)
+        #
+        #             # Loop through each row, extract the industry and P/E ratio, and store it
+        #             for row in rows[1:]:  # Skip the first row, which contains column headers
+        #                 cols = row.find_all('td')
+        #
+        #                 if len(cols) > max(industry_idx, pe_idx):
+        #                     industry = cols[industry_idx].get_text(strip=True)
+        #                     pe_ratio_text = cols[pe_idx].get_text(strip=True)
+        #
+        #                     # Clean the PE ratio - remove any non-numeric characters except decimal point
+        #                     pe_ratio_text = ''.join(c for c in pe_ratio_text if c.isdigit() or c == '.')
+        #
+        #                     # Add to data list (convert P/E to float, handle missing values)
+        #                     try:
+        #                         pe_ratio = float(pe_ratio_text) if pe_ratio_text else None
+        #                     except ValueError:
+        #                         pe_ratio = None
+        #
+        #                     pe_ind_avg_data.append({
+        #                         'Industry': industry,
+        #                         'Average P/E Ratio': pe_ratio
+        #                     })
+        #
+        #             # Create a pandas DataFrame to organize the P/E data
+        #             industry_avg_df = pd.DataFrame(pe_ind_avg_data)
+        #
+        # except requests.exceptions.RequestException as e:
+        #     st.error(f"Error fetching P/E data: {e}")
+        #     industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
+        # except Exception as e:
+        #     st.error(f"Error processing P/E data: {e}")
+        #     industry_avg_df = pd.DataFrame(columns=['Industry', 'Average P/E Ratio'])
+        #
+        # # Now scrape ROE data
+        # try:
+        #     # Send a GET request to the ROE URL with headers
+        #     response = requests.get(roe_url, headers=headers, timeout=2)
+        #     response.raise_for_status()  # Check if the request was successful
+        #
+        #     # Parse the content of the page with BeautifulSoup
+        #     soup = BeautifulSoup(response.content, 'html.parser')
+        #
+        #     # Find the table containing the ROE data
+        #     table = find_table(soup)
+        #
+        #     if table is None:
+        #         st.error("Could not find the ROE table on the webpage. The website structure might have changed.")
+        #     else:
+        #         # Extract the table rows from the table
+        #         rows = table.find_all('tr')
+        #
+        #         if len(rows) <= 1:
+        #             st.warning("Found an ROE table but it contains insufficient data.")
+        #         else:
+        #             # Get the headers to determine column indices
+        #             headers_row = [th.get_text(strip=True) for th in rows[0].find_all(['th', 'td'])]
+        #
+        #             # Find the indices for industry and ROE columns
+        #             industry_idx = next(
+        #                 (i for i, h in enumerate(headers_row) if 'industry' in h.lower() or 'sector' in h.lower()), 0)
+        #             roe_idx = next(
+        #                 (i for i, h in enumerate(headers_row) if 'roe' in h.lower() or 'return on equity' in h.lower()), 1)
+        #
+        #             # Loop through each row, extract the industry and ROE, and store it
+        #             for row in rows[1:]:  # Skip the first row, which contains column headers
+        #                 cols = row.find_all('td')
+        #
+        #                 if len(cols) > max(industry_idx, roe_idx):
+        #                     industry = cols[industry_idx].get_text(strip=True)
+        #                     roe_text = cols[roe_idx].get_text(strip=True)
+        #
+        #                     # Clean the ROE value - remove any non-numeric characters except decimal point
+        #                     # Some ROE values might be percentages, so also remove % signs
+        #                     roe_text = roe_text.replace('%', '')
+        #                     roe_text = ''.join(c for c in roe_text if c.isdigit() or c == '.' or c == '-')
+        #
+        #                     # Add to data list (convert ROE to float, handle missing values)
+        #                     try:
+        #                         roe_value = float(roe_text) if roe_text else None
+        #                     except ValueError:
+        #                         roe_value = None
+        #
+        #                     roe_data.append({
+        #                         'Industry': industry,
+        #                         'Average ROE': roe_value
+        #                     })
+        #
+        #             # Create a pandas DataFrame to organize the ROE data
+        #             roe_df = pd.DataFrame(roe_data)
+        #
+        #             # Merge the P/E and ROE DataFrames on the Industry column
+        #             if not industry_avg_df.empty and not roe_df.empty:
+        #                 industry_avg_df = pd.merge(industry_avg_df, roe_df, on='Industry', how='outer')
+        #             elif not roe_df.empty:
+        #                 industry_avg_df = roe_df
+        #
+        # except requests.exceptions.RequestException as e:
+        #     st.error(f"Error fetching ROE data: {e}")
+        # except Exception as e:
+        #     st.error(f"Error processing ROE data: {e}")
+        #
+        # return industry_avg_df
 
     # Get Forecast Data Method (w/ META Prophet Model)
     @staticmethod
