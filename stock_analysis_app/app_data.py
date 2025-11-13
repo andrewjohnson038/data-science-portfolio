@@ -719,7 +719,9 @@ class AppData:
 
         try:
             # Read the CSV file
-            industry_avg_df = pd.read_csv('industry_avgs.csv')
+            ind_avg_github_url = 'https://raw.githubusercontent.com/andrewjohnson038/data-science-portfolio/master/stock_analysis_app/industry_avgs.csv'
+
+            industry_avg_df = pd.read_csv(ind_avg_github_url)
 
             # Verify the required columns exist
             required_columns = ['Industry', 'Average P/E Ratio', 'Average ROE']
