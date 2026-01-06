@@ -287,13 +287,14 @@ def get_coordinates(address):
         return None
 
 
+# Conduct Clustering for Route Assignments
 def optimize_routes(addresses, num_groups):
     """
     Divide addresses into optimized route groups using a combination of KMeans clustering and drive-time optimization.
 
     Special Rules:
-    1. If a group contains '1920 4th Ave S', limit that group to 3 addresses (including it). This is because the driver who gets this route has to sit at this location to distribute bags
-    2. Any extra addresses in that group are redistributed to the nearest other group
+    1. If a group contains '1920 4th Ave S', limit that group to 1-3 addresses (including it). This is because the driver who gets this route has to sit at this location to distribute bags. ANY EXTRA GROUPS WILL BE REDISTRIBUTED AT THE END TO THE CLOSEST GROUP.
+    2. Any extra addresses in that group are redistributed to the nearest other group within 5 miles. This should happen at the final redistibution
 
     Algorithm Steps:
     1. Geocode all addresses to get coordinates
@@ -324,8 +325,8 @@ def optimize_routes(addresses, num_groups):
 
     The two-phase approach is efficient because:
     1. K-means clustering is fast and gives us a good starting point
-    2. Google Directions API is more accurate but slower, so we use it for final optimization
-    3. The special case for '1920 4th Ave S' is handled in Phase 1, ensuring that route stays manageable for the driver who needs to distribute bags there
+    2. Google Directions API is more accurate but slower, so we use it for final optimization ( happens in next function)
+    3. The special case for '1920 4th Ave S' is handled at the end of the function, ensuring that route stays manageable for the driver who needs to distribute bags there by moving extra routes to the closest groups
 
     Route Balancing Details:
     The algorithm uses an iterative approach to balance routes:
@@ -445,69 +446,25 @@ def optimize_routes(addresses, num_groups):
     groups = [group for group in groups if group]
     group_coords = [coords for coords in group_coords if coords]
 
-    # Step 3: Special handling for '1920 4th Ave S'
-    SPECIAL_ADDR = '1920 4th Ave S'
-    special_pattern = re.compile(r'1920\s*4th\s*Avenue?\s*S', re.IGNORECASE)
-    extras = []
-    extras_coords = []
+    # Step 3: Identify special group (but don't trim yet)
+    # Updated pattern to match "Ave" or "Avenue" variations
+    special_pattern = re.compile(r'1920\s*4th\s*(Ave|Avenue)\.?\s*S', re.IGNORECASE)
 
     # Find which group contains the special address
     special_group_idx = None
     for idx, group in enumerate(groups):
-        if any(special_pattern.search(addr.replace('.', '').replace(',', '')) for addr in group):
-            special_group_idx = idx
+        for addr in group:
+            # Clean the address for matching
+            clean_addr = addr.replace('.', '').replace(',', '')
+            if special_pattern.search(clean_addr):
+                special_group_idx = idx
+                status_text.info(f"Special address found in group {idx + 1}: {addr}")
+                break
+        if special_group_idx is not None:
             break
 
-    if special_group_idx is not None:
-        group = groups[special_group_idx]
-        group_coords_list = group_coords[special_group_idx]
-
-        # Find the special address and its coordinates
-        special_idx = None
-        for i, addr in enumerate(group):
-            if special_pattern.search(addr.replace('.', '').replace(',', '')):
-                special_idx = i
-                break
-
-        if special_idx is not None and len(group) > 3:
-            # Keep the special address and find 2 closest others
-            special_coord = group_coords_list[special_idx]
-            distances = []
-
-            for i, coord in enumerate(group_coords_list):
-                if i != special_idx:
-                    dist = geodesic(special_coord, coord).miles
-                    distances.append((i, dist))
-
-            distances.sort(key=lambda x: x[1])
-            keep_indices = {special_idx} | {i for i, _ in distances[:2]}
-
-            for i in range(len(group)):
-                if i not in keep_indices:
-                    extras.append(group[i])
-                    extras_coords.append(group_coords_list[i])
-
-            groups[special_group_idx] = [group[i] for i in keep_indices]
-            group_coords[special_group_idx] = [group_coords_list[i] for i in keep_indices]
-
-    # Step 4: Redistribute extras to the nearest other group
-    for extra_addr, extra_coord in zip(extras, extras_coords):
-        min_dist = float('inf')
-        best_group = None
-        for idx, coords in enumerate(group_coords):
-            # Calculate centroid only if coords list is not empty
-            if coords:
-                centroid = np.mean(coords, axis=0)
-                dist = geodesic(tuple(centroid), extra_coord).miles
-                if dist < min_dist:
-                    min_dist = dist
-                    best_group = idx
-        if best_group is not None:
-            groups[best_group].append(extra_addr)
-            group_coords[best_group].append(extra_coord)
-
-    # Step 5: Optimize and balance routes with batch processing
-    status_text.info("Optimizing and balancing routes...")
+    # Step 4: Optimize all routes with batch processing
+    status_text.info("Optimizing routes...")
 
     # First, optimize each route using Google Directions API
     optimized_groups = []
@@ -551,6 +508,9 @@ def optimize_routes(addresses, num_groups):
                     'addresses': groups[group_idx]
                 })
 
+    # Step 5: Balance routes (but protect special group from receiving addresses)
+    status_text.info("Balancing routes...")
+
     # Calculate average route time and identify unbalanced routes
     avg_time = sum(route_times) / len(route_times) if route_times else 0
     max_time_diff = 0.3  # Maximum allowed difference from average (30%)
@@ -558,18 +518,21 @@ def optimize_routes(addresses, num_groups):
     # Store address movements for logging
     address_movements = []
 
-    # Attempt to balance routes if they're significantly unbalanced
     if avg_time > 0:
         max_attempts = 3  # Limit the number of balancing attempts
         for attempt in range(max_attempts):
             routes_balanced = True
             # Recalculate average time at the start of each attempt
             avg_time = sum(route_times) / len(route_times) if route_times else 0
-            
+
             if avg_time == 0: # Avoid division by zero
                 break
 
             for i in range(len(route_times)):
+                # Skip the special group - it should NEVER be balanced (moved from or to)
+                if special_group_idx is not None and i == special_group_idx:
+                    continue
+
                 if route_times[i] > avg_time * (1 + max_time_diff):
                     routes_balanced = False
                     # This route is too long, try to move some addresses
@@ -580,10 +543,12 @@ def optimize_routes(addresses, num_groups):
                         shortest_route_idx = -1
                         min_time = float('inf')
                         for j in range(len(route_times)):
-                            if j != i and route_times[j] < min_time:
+                            # Skip the special group AND the current group
+                            is_special_group = (special_group_idx is not None and j == special_group_idx)
+                            if j != i and not is_special_group and route_times[j] < min_time:
                                 min_time = route_times[j]
                                 shortest_route_idx = j
-                                
+
                         if shortest_route_idx != -1:
                             # Calculate how many addresses to move
                             addresses_to_move = min(
@@ -624,8 +589,9 @@ def optimize_routes(addresses, num_groups):
                                         # Find the correct stat entry
                                         stat_entry = next((s for s in route_stats if s['route_number'] == reopt_idx + 1), None)
                                         if stat_entry:
-                                             stat_entry['total_time_minutes'] = round(route_times[reopt_idx] / 60, 1)
-                                             stat_entry['addresses'] = optimized_groups[reopt_idx]
+                                            stat_entry['total_time_minutes'] = round(route_times[reopt_idx] / 60, 1)
+                                            stat_entry['addresses'] = optimized_groups[reopt_idx]
+                                            stat_entry['num_addresses'] = len(optimized_groups[reopt_idx])
                                         else: # Add if not found (shouldn't happen with initial population)
                                             route_stats.append({
                                                 'route_number': reopt_idx + 1,
@@ -640,6 +606,128 @@ def optimize_routes(addresses, num_groups):
             if routes_balanced:
                 break
 
+    # Step 6: Handle special group - trim to 3 addresses and redistribute extras
+    status_text.info("Finalizing special route...")
+
+    if special_group_idx is not None:
+        special_route = optimized_groups[special_group_idx]
+
+        status_text.info(f"Special route before trimming has {len(special_route)} addresses")
+
+        # Find the special address in the optimized route
+        special_idx = None
+        for i, addr in enumerate(special_route):
+            clean_addr = addr.replace('.', '').replace(',', '')
+            if special_pattern.search(clean_addr):
+                special_idx = i
+                status_text.info(f"Found special address at index {i}: {addr}")
+                break
+
+        if special_idx is not None and len(special_route) > 3:
+            # Get coordinates for all addresses in the special route
+            special_route_coords = []
+            for addr in special_route:
+                coords = get_coordinates(addr)
+                if coords:
+                    special_route_coords.append(coords)
+                else:
+                    st.warning(f"Could not geocode special route address: {addr}")
+
+            if len(special_route_coords) != len(special_route):
+                status_text.error(f"Coordinate mismatch: {len(special_route)} addresses but {len(special_route_coords)} coordinates")
+
+            special_coord = special_route_coords[special_idx]
+
+            # Calculate distances from the special address to all others in the route
+            distances = []
+            for i, coord in enumerate(special_route_coords):
+                if i != special_idx:
+                    dist = geodesic(special_coord, coord).miles
+                    distances.append((i, dist))
+
+            # Sort by distance and keep the 2 closest
+            distances.sort(key=lambda x: x[1])
+            keep_indices = {special_idx} | {i for i, _ in distances[:2]}
+
+            # Extract addresses to redistribute
+            extras = []
+            for i in range(len(special_route)):
+                if i not in keep_indices:
+                    extras.append(special_route[i])
+
+            status_text.info(f"Trimming special route: keeping {len(keep_indices)} addresses, redistributing {len(extras)} extras")
+
+            # Keep only the special address and 2 closest
+            optimized_groups[special_group_idx] = [special_route[i] for i in sorted(keep_indices)]
+
+            # Redistribute extras to the nearest other groups (within 5 miles)
+            routes_to_reoptimize = {special_group_idx}
+            MAX_REDISTRIBUTION_DISTANCE = 5.0  # miles
+
+            for extra_addr in extras:
+                extra_coord = get_coordinates(extra_addr)
+                if not extra_coord:
+                    st.warning(f"Could not geocode extra address for redistribution: {extra_addr}")
+                    continue
+
+                # Find the closest group (excluding the special group) within 5 miles
+                min_dist = float('inf')
+                best_group_idx = None
+
+                for idx in range(len(optimized_groups)):
+                    if idx == special_group_idx:
+                        continue
+
+                    # Calculate distance to each address in the group and use the minimum
+                    for addr in optimized_groups[idx]:
+                        addr_coord = get_coordinates(addr)
+                        if addr_coord:
+                            dist = geodesic(extra_coord, addr_coord).miles
+                            if dist < min_dist:
+                                min_dist = dist
+                                best_group_idx = idx
+
+                # Only redistribute if within 5 miles
+                if best_group_idx is not None and min_dist <= MAX_REDISTRIBUTION_DISTANCE:
+                    optimized_groups[best_group_idx].append(extra_addr)
+                    routes_to_reoptimize.add(best_group_idx)
+
+                    # Log the redistribution
+                    address_movements.append({
+                        'attempt': 'final',
+                        'from_route': special_group_idx + 1,
+                        'to_route': best_group_idx + 1,
+                        'address': extra_addr,
+                        'distance_miles': round(min_dist, 2),
+                        'reason': 'Special route trimmed to 3 addresses'
+                    })
+                    status_text.info(f"Redistributed {extra_addr} to group {best_group_idx + 1} (distance: {round(min_dist, 2)} miles)")
+                else:
+                    status_text.warning(f"Could not redistribute {extra_addr} - closest group is {round(min_dist, 2)} miles away (max: {MAX_REDISTRIBUTION_DISTANCE} miles)")
+
+            # Re-optimize all affected routes
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                futures = {
+                    executor.submit(get_google_directions_route, optimized_groups[idx], GGL_DIRECTIONS_KEY): idx
+                    for idx in routes_to_reoptimize
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        ordered_route, total_time = future.result()
+                        optimized_groups[idx] = ordered_route
+                        route_times[idx] = total_time
+
+                        # Update route statistics
+                        stat_entry = next((s for s in route_stats if s['route_number'] == idx + 1), None)
+                        if stat_entry:
+                            stat_entry['total_time_minutes'] = round(total_time / 60, 1)
+                            stat_entry['addresses'] = ordered_route
+                            stat_entry['num_addresses'] = len(ordered_route)
+                    except Exception as e:
+                        st.warning(f"Error re-optimizing route {idx + 1}: {e}")
+
+            status_text.success(f"Special route finalized with {len(optimized_groups[special_group_idx])} addresses")
 
     # Store route statistics and movements in session state for display
     st.session_state.route_stats = route_stats
@@ -737,12 +825,22 @@ def get_google_directions_route(addresses, api_key):
                     total_time += leg["duration"]["value"]
 
             # Store traffic information for logging (using ordered addresses as key)
+            # Calculate totals across ALL legs
+            total_distance_meters = sum(leg["distance"]["value"] for leg in data["routes"][0]["legs"])
+            total_duration_seconds = sum(leg["duration"]["value"] for leg in data["routes"][0]["legs"])
+            total_traffic_seconds = sum(leg.get("duration_in_traffic", leg["duration"])["value"] for leg in data["routes"][0]["legs"])
+
+            # Convert to readable format
+            total_distance_miles = total_distance_meters / 1609.34  # meters to miles
+            total_duration_mins = total_duration_seconds / 60
+            total_traffic_mins = total_traffic_seconds / 60
+
             traffic_info = {
                 'has_traffic_data': any('duration_in_traffic' in leg for leg in data["routes"][0]["legs"]),
                 'traffic_levels': [leg.get('duration_in_traffic', {}).get('text', 'No traffic data') for leg in data["routes"][0]["legs"]],
-                'total_distance': data["routes"][0]["legs"][-1]["distance"]["text"],
-                'total_duration': data["routes"][0]["legs"][-1]["duration"]["text"],
-                'total_duration_in_traffic': data["routes"][0]["legs"][-1].get("duration_in_traffic", {}).get("text", "No traffic data")
+                'total_distance': f"{total_distance_miles:.1f} mi",
+                'total_duration': f"{int(total_duration_mins)} mins",
+                'total_duration_in_traffic': f"{int(total_traffic_mins)} mins" if any('duration_in_traffic' in leg for leg in data["routes"][0]["legs"]) else "No traffic data"
             }
 
             # Store traffic info in session state for display
@@ -754,7 +852,6 @@ def get_google_directions_route(addresses, api_key):
             original_addresses_tuple = tuple(addresses)
             st.session_state.traffic_info_cache[original_addresses_tuple] = traffic_info
 
-
             return ordered_addresses, total_time
 
         except Exception as e:
@@ -765,85 +862,6 @@ def get_google_directions_route(addresses, api_key):
             time.sleep(1)  # Wait before retrying
 
     raise Exception("Failed to get directions after multiple attempts")
-
-
-# Modify order_route_by_distance to optionally use Google Directions API
-def order_route_by_distance(coords, addresses, api_key=None):
-    """
-    Order addresses in a group to minimize travel from a fixed start point (MidCity Kitchen).
-    If api_key is provided, use Google Directions API for drive-time optimization.
-    Otherwise, use greedy nearest-neighbor heuristic.
-    """
-    START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
-    # Ensure START_ADDRESS is not already in addresses to avoid duplicates in the API call
-    addresses_unique = [addr for addr in addresses if addr != START_ADDRESS]
-
-    if api_key and addresses_unique:
-        # Always start from MidCity Kitchen
-        addresses_with_start = [START_ADDRESS] + addresses_unique
-        try:
-            # Use the main API function for consistency and caching
-            ordered_addresses, total_time = get_google_directions_route(addresses_with_start, api_key)
-            # Remove the start address from the output if it wasn't in the original list
-            if START_ADDRESS not in addresses:
-                 return [addr for addr in ordered_addresses if addr != START_ADDRESS]
-            else:
-                 return ordered_addresses
-
-        except Exception as e:
-            st.warning(f"Google Directions API failed for ordering: {e}. Falling back to distance-based ordering.")
-            # Fallback to distance-based ordering
-    # Fallback: use nearest-neighbor if no API key or API failed
-    start_coord = get_coordinates(START_ADDRESS) # Use cached geocoding
-    if not coords or len(coords) != len(addresses) or not start_coord:
-        # If geocoding failed for the start address or addresses, return original order
-        if not start_coord:
-             st.warning("Could not geocode start address for distance-based ordering. Returning original order.")
-        elif len(coords) != len(addresses):
-             st.warning("Coordinate mismatch for distance-based ordering. Returning original order.")
-        return addresses # Return original order if cannot order by distance
-
-    visited = [False] * len(coords)
-    route = []
-    current_coord = start_coord
-
-    # Find the closest address to the start address to begin the greedy route
-    min_dist = float('inf')
-    next_index = -1
-    for i, coord in enumerate(coords):
-         dist = geodesic(current_coord, coord).miles
-         if dist < min_dist:
-              min_dist = dist
-              next_index = i
-
-    if next_index != -1:
-        visited[next_index] = True
-        route.append(addresses[next_index])
-        current_coord = coords[next_index]
-
-        # Continue with the rest of the addresses
-        for _ in range(len(coords) - 1): # Iterate for the remaining addresses
-            min_dist = float('inf')
-            next_index = -1
-            for i, coord in enumerate(coords):
-                if not visited[i]:
-                    dist = geodesic(current_coord, coord).miles
-                    if dist < min_dist:
-                        min_dist = dist
-                        next_index = i
-            if next_index != -1: # Add address if found
-                visited[next_index] = True
-                route.append(addresses[next_index])
-                current_coord = coords[next_index]
-            else: # Break if no unvisited addresses found (shouldn't happen if logic is correct)
-                 break
-
-    # If somehow the greedy approach didn't include all addresses, fall back
-    if len(route) != len(addresses):
-        st.warning("Distance-based ordering did not include all addresses. Falling back to original order.")
-        return addresses
-
-    return route
 
 
 def generate_directions_link(addresses, api_key=GGL_DIRECTIONS_KEY):
@@ -1035,27 +1053,10 @@ def app_home_page():
         if st.session_state.is_optimizing:
             with st.spinner("Optimizing routes... This may take a few minutes."):
                 num_groups = len(st.session_state.selected_emails)
-                route_groups = optimize_routes(st.session_state.addresses, num_groups)
+                ordered_route_groups = optimize_routes(st.session_state.addresses, num_groups)
 
-                # --- Order each group using Google API if available ---
-                ordered_route_groups = []
-                all_groups_empty = True
-
-                for i, group in enumerate(route_groups):
-                    # Geocode each address in the group to get coordinates for ordering
-                    group_coords_for_ordering = [get_coordinates(addr) for addr in group] # Use cached version
-
-                    # Filter out None coords before ordering
-                    valid_group_addresses = [group[j] for j, coord in enumerate(group_coords_for_ordering) if coord is not None]
-                    valid_group_coords = [coord for coord in group_coords_for_ordering if coord is not None]
-
-                    if valid_group_addresses:
-                        all_groups_empty = False
-                        # Order the route using the selected method
-                        ordered_route = order_route_by_distance(valid_group_coords, valid_group_addresses, api_key=GGL_DIRECTIONS_KEY)
-                        ordered_route_groups.append(ordered_route)
-                    else:
-                        ordered_route_groups.append([])
+                # Check if any groups are non-empty
+                all_groups_empty = all(len(group) == 0 for group in ordered_route_groups)
 
                 # Now that groups are optimized and ordered, save to session state and proceed
                 if all_groups_empty:
@@ -1113,7 +1114,7 @@ def app_home_page():
             # Show the route assignment interface first
             st.subheader("Route Assignments")
             START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
-            
+
             for group_idx, route_group in enumerate(st.session_state.route_groups):
                 try:
                     st.subheader(f"Route Group {group_idx+1}")
@@ -1123,10 +1124,10 @@ def app_home_page():
                         try:
                             # Add starting point to the route for calculations
                             route_with_start = [START_ADDRESS] + route_group
-                            
+
                             # Get final optimized route order and metrics including start point
                             ordered_addresses, total_time = get_google_directions_route(route_with_start, GGL_DIRECTIONS_KEY)
-                            
+
                             # Get traffic info for the final route
                             route_key = tuple(route_with_start)
                             if route_key in st.session_state.traffic_info_cache:
@@ -1170,9 +1171,11 @@ def app_home_page():
                     email_to_group[EMAILS[assigned_name]] = group_idx
                     new_assignments[EMAILS[assigned_name]] = route_group
 
-                    # --- Display map for this route group ---
+                    # --- Display map for this route group with custom colors ---
                     if route_group:
                         try:
+                            import pydeck as pdk
+
                             # Use cached coordinates if available
                             if not hasattr(st.session_state, 'cached_coordinates'):
                                 st.session_state.cached_coordinates = {}
@@ -1180,16 +1183,73 @@ def app_home_page():
                             if group_idx not in st.session_state.cached_coordinates:
                                 # Include start point coordinates for map
                                 start_coords = get_coordinates(START_ADDRESS)
-                                coords_for_map = [start_coords] if start_coords else []
-                                coords_for_map.extend([get_coordinates(addr) for addr in route_group])
-                                valid_coords_for_map = [coord for coord in coords_for_map if coord is not None]
-                                if valid_coords_for_map:
-                                    st.session_state.cached_coordinates[group_idx] = valid_coords_for_map
+                                coords_for_map = []
+
+                                # Add start point with blue marker indicator
+                                if start_coords:
+                                    coords_for_map.append({
+                                        'lat': start_coords[0],
+                                        'lon': start_coords[1],
+                                        'color': [0, 255, 0, 200],  # start coordinate
+                                        'label': f"START ADDRESS: {START_ADDRESS}"  # shows start address on map
+                                    })
+
+                                for i, addr in enumerate(route_group, 1):
+                                    coord = get_coordinates(addr)
+                                    if coord:
+                                        coords_for_map.append({
+                                            'lat': coord[0],
+                                            'lon': coord[1],
+                                            'color': [255, 0, 0, 200],
+                                            'label': f"Stop {i}: {addr}"
+                                        })
+
+                                if coords_for_map:
+                                    st.session_state.cached_coordinates[group_idx] = coords_for_map
                                 else:
                                     st.info("Could not geocode addresses to display map.")
 
                             if group_idx in st.session_state.cached_coordinates:
-                                map_data = pd.DataFrame(st.session_state.cached_coordinates[group_idx], columns=['latitude', 'longitude'])
+                                map_coords = st.session_state.cached_coordinates[group_idx]
+
+                                # Create DataFrame for pydeck
+                                map_df = pd.DataFrame(map_coords)
+
+                                # Calculate center of map
+                                center_lat = map_df['lat'].mean()
+                                center_lon = map_df['lon'].mean()
+
+                                # Create pydeck layer with custom colors
+                                layer = pdk.Layer(
+                                    'ScatterplotLayer',
+                                    data=map_df,
+                                    get_position='[lon, lat]',
+                                    get_color='color',
+                                    get_radius=150,
+                                    pickable=True
+                                )
+
+                                # Set the viewport location
+                                view_state = pdk.ViewState(
+                                    latitude=center_lat,
+                                    longitude=center_lon,
+                                    zoom=11,
+                                    pitch=0
+                                )
+
+                                # Render the map
+                                st.pydeck_chart(pdk.Deck(
+                                    layers=[layer],
+                                    initial_view_state=view_state,
+                                    tooltip={"text": "{label}"}  # reference label text
+                                ))
+
+                        except ImportError:
+                            # Fallback to basic st.map if pydeck is not available
+                            logger.warning("pydeck not available, falling back to basic map")
+                            if group_idx in st.session_state.cached_coordinates:
+                                map_coords = st.session_state.cached_coordinates[group_idx]
+                                map_data = pd.DataFrame([{'latitude': c['lat'], 'longitude': c['lon']} for c in map_coords])
                                 st.map(map_data)
                         except Exception as e:
                             logger.error(f"Error displaying map for group {group_idx}: {str(e)}")
