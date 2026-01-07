@@ -27,7 +27,7 @@ The Brightside Route Optimizer is designed to efficiently distribute delivery ad
 - Route balancing
 - Time of day
 
-## How It Works
+## How It Works - Optimization Process
 
 ### Two-Phase Optimization Approach
 
@@ -75,7 +75,6 @@ The application uses a two-phase approach to optimize routes:
 
 2. **Size Protection**
    - Minimum route size: 3 addresses
-   - Maximum addresses moved per attempt: min(route_size - 3, route_size // 4)
    - Prevents routes from becoming too small or too large
 
 3. **Traffic-Aware Routing**
@@ -84,6 +83,66 @@ The application uses a two-phase approach to optimize routes:
    - Provides both base duration and traffic-affected duration
 
 ## Implementation Details
+
+### Step by Step Route Optimization Process
+
+![Route Optimization Process](resources/route_optimization.png)
+
+1. **Extract Addresses**  
+   Extracts delivery addresses from uploaded PDFs using regex patterns.
+    - Removes duplicates and irrelevant lines.
+    - Converts extracted addresses into a format compatible with Google Maps.
+
+2. **Geocode Addresses**  
+   Converts each address to latitude and longitude coordinates using Nominatim.
+    - Caches results for efficiency.
+    - Ensures all addresses include "Minnesota, USA" for accurate geocoding.
+
+3. **Feature Engineering**  
+   Combines latitude, longitude, and straight-line distance from the starting location into a feature vector `[lat, lon, distance_from_start]`.
+    - This enriched feature set helps KMeans cluster addresses not just by proximity but also relative to the starting point.
+    - Provides context for grouping addresses that make sense geographically.
+
+4. **KMeans Clustering**  
+   Divides addresses into initial route groups based on proximity.
+    - Groups addresses that are geographically close to each other.
+    - Fast first-pass grouping to reduce the computational load for later optimization.
+
+5. **Detect Special Address**  
+   Identifies the special address `1920 4th Ave S` within a group.
+    - Marks this group to limit its size to 3 addresses.
+    - Ensures the driver at this location can distribute bags efficiently.
+    - **Note:** For this address, the driver drops the bags and has to wait at the location for around an hour, as it is a community housing space where all are incentivized to buy available bags compared to a normal drop-off; the route distribution process is designed to redistribute and reduce routes from the initial clustering to balance total route times across drivers.
+
+6. **Route Optimization (Google Directions API)**  
+   Calculates the optimal driving order for each group using real-time traffic data.
+    - Returns ordered addresses and total drive time.
+    - Minimizes driving time while considering actual traffic conditions.
+
+7. **Iterative Route Balancing**  
+   Compares route times across all groups and moves addresses from long routes to shorter ones if a route exceeds 30% of the average duration.
+    - Re-optimizes affected routes after each move.
+    - Limits movements to maintain minimum route size and avoid overloading any single driver.
+
+8. **Special Route Trimming & Redistribution**  
+   Reduces the special route to 3 addresses: the special location plus the 2 closest.
+    - Extra addresses are redistributed to the nearest other groups within 5 miles.
+    - Ensures the special route remains manageable while other routes remain balanced.
+
+9. **Re-optimize Affected Routes**  
+   Re-runs the Google Directions API for routes impacted by balancing or redistribution.
+    - Maintains optimal travel times after changes.
+
+10. **Final Optimized Routes**  
+    All addresses are assigned to final groups in an optimized order.
+    - No addresses are lost during optimization.
+    - Routes are ready for delivery assignments.
+
+11. **Team Assignment**  
+    Assigns each route to a driver using the interface.
+    - Tracks which driver is responsible for each route.
+    - Stores assignments for operational use.
+
 
 ### Performance Optimizations
 
