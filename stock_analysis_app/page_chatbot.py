@@ -2,6 +2,7 @@ import pandas as pd
 from stock_analysis_app.app_constants import GROQ_API_KEY
 from stock_analysis_app.app_constants import ExtraComponents
 from stock_analysis_app.app_data import AppData
+from stock_analysis_app.app_constants import DateVars
 import streamlit as st
 from groq import Groq
 
@@ -9,6 +10,11 @@ from groq import Groq
 ec = ExtraComponents()
 data = AppData()
 client = Groq(api_key=GROQ_API_KEY)
+dv = DateVars()
+
+# Global Data Vars
+st_dt = dv.start_date
+end_dt = dv.today
 
 # ---------------- SIDEBAR CONTENT ----------------
 ec.get_sidebar_notes()
@@ -56,8 +62,8 @@ if "default_model" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hi there! Any stock-related questions? Drop it below :)\n\n(Note: I will "
-                                         "use app-related data for the ticker selected above if specifically "
-                                         "prompted)"}]
+                                         "use app-related data for the ticker selected above as of the related date - otherwise, "
+                                         "I will use outdated data)"}]
 
 
 # ---------------- Formatting HELPER FUNCTIONS FOR FORMATTING ----------------
@@ -237,8 +243,10 @@ if prompt := st.chat_input():
 
         # Stream response from Groq API
         completion = client.chat.completions.create(
-            model=st.session_state.default_model,
-            messages=api_messages,
+            model="llama-3.1-8b-instant",
+            messages=api_messages[-6:],  # limit history
+            max_tokens=512,
+            temperature=0.7,
             stream=True
         )
 
