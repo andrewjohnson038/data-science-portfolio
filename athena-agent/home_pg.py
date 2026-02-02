@@ -19,7 +19,7 @@ def home_pg():
 
     # Header
     st.markdown("<h1 style='text-align: center;'>AWS Athena AI Agent</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Ask questions about your data in natural language!</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>Ask Any Questions About Your Data. No Coding Knowledge Needed!</p>", unsafe_allow_html=True)
 
     st.write("---")
 
