@@ -170,7 +170,7 @@ def home_pg():
                 st.session_state.messages = [
                     {
                         "role": "assistant",
-                        "content": "Hi! I'm Ari, your AI-powered SQL assistant. What data would you like me to retrieve for you?"
+                        "content": "Hi there! What data would you like me to retrieve for you today?"
                     }
                 ]
                 st.rerun()
