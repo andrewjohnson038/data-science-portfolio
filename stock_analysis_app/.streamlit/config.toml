@@ -9,3 +9,6 @@ secondaryBackgroundColor = "#2d2d2d"
 textColor = "#ffffff"
 # Modern, clean font stack for financial data clarity
 font = "sans-serif"
+
+[server]
+fileWatcherType = "none"
