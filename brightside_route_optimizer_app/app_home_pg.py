@@ -1,12 +1,12 @@
+# app_home_pg.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import tempfile
 import smtplib
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import PyPDF2
 import re
 from sklearn.cluster import KMeans
 from geopy.geocoders import Nominatim
@@ -36,7 +36,7 @@ def initialize_session_state():
     """Initialize all session state variables used in the application."""
     # Tracks the current step in the route generation process (1-5)
     # Step 1: Select Team Members
-    # Step 2: Upload Route Document
+    # Step 2: Load & Review Addresses from S3 CSV
     # Step 3: Review Routes
     # Step 4: Assign Routes
     # Step 5: Confirmation and Email Templates
@@ -48,7 +48,7 @@ def initialize_session_state():
     if 'selected_emails' not in st.session_state:
         st.session_state.selected_emails = []
 
-    # Stores the list of addresses extracted from the uploaded PDF
+    # Stores the list of addresses loaded from the S3 routes CSV
     # These are the delivery locations that need to be routed
     if 'addresses' not in st.session_state:
         st.session_state.addresses = []
@@ -62,11 +62,6 @@ def initialize_session_state():
     # Used to track which routes are assigned to which team members
     if 'assignments' not in st.session_state:
         st.session_state.assignments = {}
-
-    # Stores the uploaded PDF file containing delivery addresses
-    # Used for address extraction and processing
-    if 'pdf_file' not in st.session_state:
-        st.session_state.pdf_file = None
 
     # Flag indicating whether route optimization is currently in progress
     # Used to disable UI elements during optimization
@@ -108,6 +103,16 @@ def initialize_session_state():
     if 'member_to_delete_index' not in st.session_state:
         st.session_state.member_to_delete_index = None
 
+    # Stores the full routes DataFrame loaded from S3 (all columns, not just Address)
+    # Used in Step 5 to match addresses back to stop details (name, instructions, language, amount)
+    if 'routes_df' not in st.session_state:
+        st.session_state.routes_df = pd.DataFrame()
+
+    # Flag set to True when the Google Directions API fails so the UI can warn the user
+    if 'directions_api_failed' not in st.session_state:
+        st.session_state.directions_api_failed = False
+
+
 # AWS Configuration
 # Note: These secrets should ideally be accessed in the main app_main.py
 # and passed down or accessed carefully in pages. Keeping them here for now.
@@ -125,7 +130,8 @@ s3 = boto3.client(
 
 # S3 bucket and file configuration
 TEAM_MEMBERS_BUCKET = "brightside-route-optimizer"
-TEAM_MEMBERS_FILE = "brightside_team_members_dummy_file.csv" # Using dummy file
+TEAM_MEMBERS_FILE = "brightside_team_members_dummy_file.csv"  # Using dummy file
+ROUTES_FILE = "pwyc_delivery_routes_dummy_file.csv"  # Routes CSV with Address column
 
 
 def load_team_members():
@@ -146,6 +152,45 @@ def load_team_members():
         # Fallback to empty dict if S3 load fails
         return {}
 
+
+def load_addresses_from_s3():
+    """Load delivery addresses from the routes CSV in S3.
+
+    Reads the 'Address' column from the routes CSV, dropping any rows
+    where Address is blank/null. Returns a list of non-empty address strings
+    in CSV order (duplicates preserved since the same building can have multiple stops).
+    """
+    df = load_routes_df_from_s3()
+    addresses = df['Address'].dropna().str.strip()
+    addresses = addresses[addresses != ''].tolist()
+    return addresses
+
+
+def load_routes_df_from_s3():
+    """Load the full routes DataFrame from S3 (all columns).
+
+    Used to match addresses back to their stop details (Name, Delivery Instructions,
+    Language, Amount, Notes, Phone) when building email templates in Step 5.
+    Returns a DataFrame with all columns, rows with blank Address dropped.
+    """
+    try:
+        response = s3.get_object(Bucket=TEAM_MEMBERS_BUCKET, Key=ROUTES_FILE)
+        csv_content = response['Body'].read().decode('utf-8')
+        df = pd.read_csv(StringIO(csv_content))
+
+        if 'Address' not in df.columns:
+            raise ValueError("Routes CSV does not contain an 'Address' column.")
+
+        # Drop rows with blank/null Address and normalize whitespace
+        df = df[df['Address'].notna()]
+        df['Address'] = df['Address'].str.strip()
+        df = df[df['Address'] != ''].reset_index(drop=True)
+        return df
+    except Exception as e:
+        logger.error(f"Error loading full routes DataFrame from S3: {str(e)}")
+        raise Exception(f"Failed to load routes from S3: {str(e)}")
+
+
 # Load team members from S3
 EMAILS = load_team_members()
 
@@ -161,84 +206,6 @@ GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD")
 GGL_DIRECTIONS_KEY = st.secrets.get("GGL_DIRECTIONS_KEY")
 BRIGHTSIDE_CONFIRMATION_KEY = st.secrets.get("BRIGHTSIDE_CONFIRMATION_KEY")
 
-
-# Helper functions
-def extract_addresses_from_pdf(pdf_file):
-    """Extract address-like text from a PDF, approximating the Address column"""
-    addresses = set()
-
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(pdf_file.read())
-        temp_path = temp_file.name
-
-    try:
-        # Open PDF file in binary read mode
-        with open(temp_path, 'rb') as file:
-            # Create PDF reader object
-            pdf_reader = PyPDF2.PdfReader(file)
-
-            # Loop through each page in the PDF
-            for page in pdf_reader.pages:
-                # Extract all text from current page
-                text = page.extract_text()
-
-                # Split text into individual lines
-                lines = text.split('\n')
-
-                # Process each line of text
-                for line in lines:
-                    # Remove leading/trailing whitespace
-                    line = line.strip()
-
-                    # Skip empty lines or lines with unwanted keywords
-                    if not line or "Address" in line or "Delivery" in line:
-                        continue
-
-                    # Define regex pattern to match complete addresses
-                    # Pattern looks for: [Building Name - ] Street Number Street Name, City, State ZIP
-                    pattern = (
-                        r'(?:([A-Za-z\s]+(?:Towers?|Building|Center|Plaza)) - )?'  # Optional building name with dash
-                        r'(\d{3,5})\s+'                                           # Street number (3-5 digits) + space  
-                        r'([\w\s#/.,-]+?(?:Ave|St|Blvd|Rd|Dr|Ct|Ln|Way|Place|Pl|Trail|Parkway|Pkwy|Cir|Terrace)[\w\s]*?)'  # Street name + type
-                        r',\s*([A-Za-z\s]+)'                                      # Comma + city name
-                        r',\s*([A-Z]{2})'                                         # Comma + state (2 letters)
-                        r'\s+(\d{5}(?:-\d{4})?)'                                  # Space + ZIP code (5 or 9 digits)
-                    )
-
-                    # Search for the address pattern in current line (case insensitive)
-                    match = re.search(pattern, line, re.IGNORECASE)
-
-                    # If pattern is found, extract the address components
-                    if match:
-                        # building = match.group(1)    # Building name (could be None)
-                        number = match.group(2)      # Street number
-                        street = match.group(3)      # Street name and type
-                        city = match.group(4)        # City name
-                        state = match.group(5)       # State abbreviation
-                        zip_code = match.group(6)    # ZIP code
-
-                        # Build Google Maps compatible address (always exclude building name)
-                        # Format: "Street Number Street Name, City, State ZIP"
-                        google_maps_address = f"{number} {street.strip()}, {city.strip()}, {state} {zip_code}"
-
-                        # Clean up any double spaces
-                        google_maps_address = re.sub(r'\s+', ' ', google_maps_address)
-
-                        # Add address to set (automatically removes duplicates)
-                        addresses.add(google_maps_address)
-
-        # Print results
-        print(f"Found {len(addresses)} unique addresses:")
-        for address in sorted(addresses):
-            print(address)
-
-    except Exception as e:
-        logger.error(f"Error processing PDF: {str(e)}")
-        raise Exception(f"Failed to process PDF: {str(e)}")
-    finally:
-        os.unlink(temp_path)
-
-    return sorted(addresses)
 
 # Create a single geolocator instance to reuse
 geolocator = Nominatim(user_agent="route_optimizer_v1.0", timeout=10)  # Use Nominatim geocoder with increased timeout and rate limiting
@@ -525,7 +492,7 @@ def optimize_routes(addresses, num_groups):
             # Recalculate average time at the start of each attempt
             avg_time = sum(route_times) / len(route_times) if route_times else 0
 
-            if avg_time == 0: # Avoid division by zero
+            if avg_time == 0:  # Avoid division by zero
                 break
 
             for i in range(len(route_times)):
@@ -592,7 +559,7 @@ def optimize_routes(addresses, num_groups):
                                             stat_entry['total_time_minutes'] = round(route_times[reopt_idx] / 60, 1)
                                             stat_entry['addresses'] = optimized_groups[reopt_idx]
                                             stat_entry['num_addresses'] = len(optimized_groups[reopt_idx])
-                                        else: # Add if not found (shouldn't happen with initial population)
+                                        else:  # Add if not found (shouldn't happen with initial population)
                                             route_stats.append({
                                                 'route_number': reopt_idx + 1,
                                                 'num_addresses': len(optimized_groups[reopt_idx]),
@@ -857,20 +824,39 @@ def get_google_directions_route(addresses, api_key):
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.error(f"Failed to get directions after {max_retries} attempts: {str(e)}")
-                raise e
+                # Flag API failure in session state so the UI can warn the user
+                st.session_state.directions_api_failed = True
+                # Graceful fallback: return addresses in original order with 0 time
+                # rather than raising, so the rest of the app can continue
+                fallback_traffic_info = {
+                    'has_traffic_data': False,
+                    'traffic_levels': [],
+                    'total_distance': 'N/A (API unavailable)',
+                    'total_duration': 'N/A (API unavailable)',
+                    'total_duration_in_traffic': 'N/A (API unavailable)'
+                }
+                original_addresses_tuple = tuple(addresses)
+                if not hasattr(st.session_state, 'traffic_info_cache'):
+                    st.session_state.traffic_info_cache = {}
+                st.session_state.traffic_info_cache[original_addresses_tuple] = fallback_traffic_info
+                return addresses, 0  # Return original order, no time data
             logger.warning(f"Retrying Google Directions API call after error: {str(e)}")
             time.sleep(1)  # Wait before retrying
 
-    raise Exception("Failed to get directions after multiple attempts")
+    # Should not reach here, but return fallback just in case
+    st.session_state.directions_api_failed = True
+    return addresses, 0
 
 
 def generate_directions_link(addresses, api_key=GGL_DIRECTIONS_KEY):
-    """Generate a Google Maps directions link for a set of addresses in optimized order"""
+    """Generate a Google Maps directions link for a set of addresses in optimized order.
+    Falls back to original address order if the Google Directions API is unavailable.
+    """
     if not addresses:
-        return "" # Return empty string if no addresses
+        return ""  # Return empty string if no addresses
 
     START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
-    
+
     try:
         # Get optimized route order from Google Directions API
         # Include START_ADDRESS in the API call to get the route starting from there
@@ -891,7 +877,7 @@ def generate_directions_link(addresses, api_key=GGL_DIRECTIONS_KEY):
         logger.warning(f"Failed to get optimized order for directions link: {e}. Falling back to original order.")
         base_url = "https://www.google.com/maps/dir/"
         base_url += START_ADDRESS.replace(" ", "+") + "/"
-        for address in addresses: # Use original addresses here
+        for address in addresses:  # Use original addresses here
             base_url += address.replace(" ", "+") + "/"
         return base_url
 
@@ -952,7 +938,7 @@ def app_home_page():
     st.progress(progress_percentage / 100)
     current_step_name = {
         1: "Select Team Members",
-        2: "Upload Route Document",
+        2: "Load Addresses from S3",
         3: "Review Routes",
         4: "Assign Routes",
         5: "Confirmation"
@@ -995,32 +981,55 @@ def app_home_page():
             When opened, it will launch in full-screen mode without Safari's interface elements.
             """)
 
-    # Step 2: Upload PDF
+    # Step 2: Load addresses from S3 CSV
     elif st.session_state.step == 2:
-        st.header("Step 2: Upload Route Document")
+        st.header("Step 2: Load Addresses")
         selected_names = [name for name, email in EMAILS.items() if email in st.session_state.selected_emails]
         st.write(f"Selected Team Members: {', '.join(selected_names)}")
-
-        uploaded_file = st.file_uploader("Upload a PDF containing addresses:", type="pdf")
+        st.write("Addresses will be loaded from the current routes CSV in S3. You can edit or remove individual addresses before optimizing.")
+        st.caption(f"Routes file: `{ROUTES_FILE}`")
 
         cols = st.columns([1, 1])
         with cols[0]:
             if st.button("⬅️ Back", use_container_width=True, key="step2_back"):
                 go_to_step(1)
+        with cols[1]:
+            if st.button("Load Addresses from S3", use_container_width=True, key="step2_load"):
+                try:
+                    routes_df = load_routes_df_from_s3()
+                    addresses = routes_df['Address'].dropna().str.strip()
+                    addresses = addresses[addresses != ''].tolist()
+                    if addresses:
+                        st.session_state.addresses = addresses
+                        st.session_state.routes_df = routes_df  # Cache full DF for Step 5 stop detail matching
+                        st.success(f"Loaded {len(addresses)} addresses. Review them below, then click Continue.")
+                        st.rerun()
+                    else:
+                        st.warning("No addresses found in the routes CSV. Please add stops on the Update Routes page first.")
+                except Exception as e:
+                    st.error(f"Error loading addresses from S3: {str(e)}")
 
-        if uploaded_file is not None:
-            st.session_state.pdf_file = uploaded_file
-            with cols[1]:
-                if st.button("Extract Addresses and Continue", use_container_width=True, key="step2_continue"):
-                    try:
-                        addresses = extract_addresses_from_pdf(uploaded_file)
-                        if addresses:
-                            st.session_state.addresses = addresses
-                            go_to_step(3)
-                        else:
-                            st.warning("No addresses could be extracted from the PDF. Please verify the PDF contains properly formatted addresses and try again.")
-                    except Exception as e:
-                        st.error(f"Error processing PDF file: {str(e)}. Please try a different file.")
+        # If addresses already loaded, show editable list and continue button
+        if st.session_state.addresses:
+            st.markdown(f"**{len(st.session_state.addresses)} addresses loaded** — edit or remove any below before optimizing:")
+
+            edited_addresses = []
+            indices_to_keep = []
+            for i, address in enumerate(st.session_state.addresses):
+                col_addr, col_remove = st.columns([5, 1])
+                with col_addr:
+                    edited = st.text_input(f"Address {i + 1}", value=address, key=f"s2_addr_{i}", label_visibility="collapsed")
+                with col_remove:
+                    remove = st.button("✕", key=f"s2_remove_{i}", help="Remove this address")
+                if not remove:
+                    edited_addresses.append(edited)
+
+            # Update session state with current edits (minus removed rows)
+            st.session_state.addresses = edited_addresses
+
+            if edited_addresses:
+                if st.button("Continue to Optimize →", use_container_width=True, key="step2_continue"):
+                    go_to_step(3)
 
     # Step 3: Review and optimize routes
     elif st.session_state.step == 3:
@@ -1028,7 +1037,7 @@ def app_home_page():
         selected_names = [name for name, email in EMAILS.items() if email in st.session_state.selected_emails]
         st.write(f"Selected Team Members: {', '.join(selected_names)}")
 
-        st.subheader("Extracted Addresses")
+        st.subheader("Addresses to Route")
 
         # Allow user to edit addresses if needed
         edited_addresses = []
@@ -1133,7 +1142,7 @@ def app_home_page():
                             if route_key in st.session_state.traffic_info_cache:
                                 info = st.session_state.traffic_info_cache[route_key]
                                 st.write(f"• Base Time: {info.get('total_duration', 'N/A')} | Expected Traffic Time: {info.get('total_duration_in_traffic', 'N/A')} | Total Distance: {info.get('total_distance', 'N/A')} | Addresses: {len(route_group)}")
-                            st.markdown("") # Add a small space
+                            st.markdown("")  # Add a small space
 
                             # Display addresses in optimized order (excluding start point in display)
                             with st.expander("View addresses"):
@@ -1294,6 +1303,158 @@ def app_home_page():
         st.header("Step 5: Confirmation and Email Templates")
         st.write("Review the final assignments and email templates:")
 
+        # --- API failure banner ---
+        # Shown if Google Directions API failed during optimization or route generation.
+        # Routes are still usable but may not be in optimized order and time estimates are unavailable.
+        if st.session_state.get('directions_api_failed', False):
+            st.warning(
+                "⚠️ Note: The app was unable to retrieve data from Google Directions — this may be due to an API issue "
+                "or invalid address data. Routes are shown in their original order rather than optimized order, "
+                "and drive time estimates are unavailable. Please verify addresses and try again if needed."
+            )
+
+        START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
+
+        # Load the full routes DataFrame for stop detail matching.
+        # Prefer the cached version loaded in Step 2; fall back to a fresh S3 load if missing.
+        routes_df = st.session_state.get('routes_df', pd.DataFrame())
+        if routes_df.empty:
+            try:
+                routes_df = load_routes_df_from_s3()
+                st.session_state.routes_df = routes_df
+            except Exception:
+                routes_df = pd.DataFrame()  # Continue gracefully even if reload fails
+
+        def get_stop_details(address, routes_df):
+            """Match an address string to its row(s) in the routes CSV.
+
+            Returns a list of grouped stop dicts. Rows that share the same phone number
+            at the same address are merged into a single entry: names are combined,
+            amounts are summed, and a per-person breakdown is added to notes.
+            Rows with different phone numbers (or no phone) remain separate entries.
+
+            Each returned dict has keys:
+              names, phone, total_amount, per_person_note,
+              delivery_instructions, language, notes
+            """
+            if routes_df.empty or 'Address' not in routes_df.columns:
+                return []
+            norm_addr = address.strip().lower()
+            matches = routes_df[routes_df['Address'].str.strip().str.lower() == norm_addr].copy()
+            if matches.empty:
+                return []
+
+            # Parse raw rows into dicts first
+            raw = []
+            for _, row in matches.iterrows():
+                raw.append({
+                    'name': str(row.get('Name', '')).strip() if pd.notna(row.get('Name')) else '',
+                    'delivery_instructions': str(row.get('Delivery Instructions', '')).strip() if pd.notna(row.get('Delivery Instructions')) else '',
+                    'language': str(row.get('Language', '')).strip() if pd.notna(row.get('Language')) else '',
+                    'amount': str(row.get('Amount', '')).strip() if pd.notna(row.get('Amount')) else '',
+                    'notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) else '',
+                    'phone': str(row.get('Phone', '')).strip() if pd.notna(row.get('Phone')) else '',
+                })
+
+            # Group rows by phone number. Rows with a blank phone are kept separate (no grouping).
+            from collections import OrderedDict
+            phone_groups = OrderedDict()  # phone -> list of raw stop dicts
+            no_phone = []
+            for r in raw:
+                if r['phone']:
+                    phone_groups.setdefault(r['phone'], []).append(r)
+                else:
+                    no_phone.append(r)
+
+            grouped = []
+
+            # Merge rows that share a phone number
+            for phone, rows in phone_groups.items():
+                if len(rows) == 1:
+                    # Single row for this phone — return as-is, no grouping needed
+                    r = rows[0]
+                    try:
+                        amt = float(r['amount']) if r['amount'] else None
+                    except ValueError:
+                        amt = None
+                    grouped.append({
+                        'names': r['name'] if r['name'] else None,
+                        'phone': phone,
+                        'total_amount': r['amount'],
+                        'per_person_note': None,  # Only one person, no breakdown needed
+                        'delivery_instructions': r['delivery_instructions'],
+                        'language': r['language'],
+                        'notes': r['notes'],
+                    })
+                else:
+                    # Multiple rows share this phone — group them into one entry
+                    names = [r['name'] for r in rows if r['name']]
+                    # Sum amounts where possible; keep raw strings for non-numeric
+                    total_amount = None
+                    per_person_parts = []
+                    numeric_amounts = []
+                    for r in rows:
+                        try:
+                            val = float(r['amount']) if r['amount'] else 0.0
+                            numeric_amounts.append(val)
+                            per_person_parts.append(f"{r['name'] or 'Unknown'}: ${r['amount']}")
+                        except ValueError:
+                            numeric_amounts.append(0.0)
+                            per_person_parts.append(f"{r['name'] or 'Unknown'}: {r['amount']}")
+
+                    if any(numeric_amounts):
+                        total_amount = str(sum(numeric_amounts))
+                        # Clean up trailing .0 for whole numbers
+                        if total_amount.endswith('.0'):
+                            total_amount = total_amount[:-2]
+
+                    per_person_note = " | ".join(per_person_parts) if per_person_parts else None
+
+                    # Use delivery instructions / language / notes from first row that has them
+                    delivery_instructions = next((r['delivery_instructions'] for r in rows if r['delivery_instructions']), '')
+                    language = next((r['language'] for r in rows if r['language']), '')
+                    notes = next((r['notes'] for r in rows if r['notes']), '')
+
+                    grouped.append({
+                        'names': ", ".join(names) if names else None,
+                        'phone': phone,
+                        'total_amount': total_amount,
+                        'per_person_note': per_person_note,
+                        'delivery_instructions': delivery_instructions,
+                        'language': language,
+                        'notes': notes,
+                    })
+
+            # Add ungrouped (no-phone) rows each as their own entry
+            for r in no_phone:
+                grouped.append({
+                    'names': r['name'] if r['name'] else None,
+                    'phone': '',
+                    'total_amount': r['amount'],
+                    'per_person_note': None,
+                    'delivery_instructions': r['delivery_instructions'],
+                    'language': r['language'],
+                    'notes': r['notes'],
+                })
+
+            return grouped
+
+        def build_customer_text(stop, eta_mins):
+            """Build the language-appropriate customer text message for a stop.
+
+            Uses the stop's Language field to choose between Spanish and English templates.
+            eta_mins is an int (minutes) or None if unavailable.
+            Works with the grouped stop dict format returned by get_stop_details.
+            """
+            lang = stop.get('language', '').strip().lower()
+            eta_str = str(eta_mins) if eta_mins is not None else '?'
+
+            if lang == 'spanish':
+                return f"Hola! Sus frutas y verduras de BrightSide Produce llegarán en aproximadamente {eta_str} minutos."
+            else:
+                # Default to English for English or unknown language
+                return f"Hi There!! Your BrightSide fruits and veggies will arrive in approximately {eta_str} minutes."
+
         # Display final assignments and email templates
         for email, addresses in st.session_state.assignments.items():
             assignee_name = next((name for name, e in EMAILS.items() if e == email), "Unknown")
@@ -1301,7 +1462,6 @@ def app_home_page():
             st.write(f"Email: {email}")
 
             # Display route statistics using same cache structure as Step 4
-            START_ADDRESS = "693 Raymond Ave, Saint Paul, MN"
             route_with_start = [START_ADDRESS] + addresses
             route_key = tuple(route_with_start)
 
@@ -1327,7 +1487,6 @@ def app_home_page():
 
             # Create address list in optimized order
             try:
-                # Add starting point for route optimization
                 route_with_start = [START_ADDRESS] + addresses
                 ordered_addresses, _ = get_google_directions_route(route_with_start, GGL_DIRECTIONS_KEY)
                 # Remove start point from display
@@ -1336,52 +1495,113 @@ def app_home_page():
                 # Fallback to original order if API call fails
                 ordered_addresses = addresses
 
-            address_list = ""
-            for addr in ordered_addresses:
-                address_list += f"- {addr}\n"
+            # --- Build per-stop detail block for driver email ---
+            # For each address in route order, look up its stop info from the routes CSV.
+            # If an address has multiple stops (e.g. same building, multiple recipients),
+            # each stop gets its own sub-entry. Cumulative drive time is used to estimate
+            # ETA for each stop's customer text message.
+            stops_section_lines = []
+
+            # Parse total traffic time in minutes for ETA estimation
+            traffic_time_str = info.get('total_duration_in_traffic', 'N/A')
+            try:
+                total_route_mins = int(traffic_time_str.replace('mins', '').replace('min', '').strip())
+            except (ValueError, AttributeError):
+                total_route_mins = None
+
+            # Distribute ETA roughly evenly across stops as a simple estimate
+            # (e.g. stop 3 of 5 on a 50-min route ≈ 30 mins in)
+            num_stops = len(ordered_addresses)
+            for stop_idx, addr in enumerate(ordered_addresses):
+                stop_details = get_stop_details(addr, routes_df)
+
+                # Estimate ETA for this stop: proportional position along route
+                if total_route_mins is not None and num_stops > 0:
+                    stop_eta_mins = round(total_route_mins * (stop_idx + 1) / num_stops)
+                else:
+                    stop_eta_mins = None
+
+                stops_section_lines.append(f"Stop {stop_idx + 1}: {addr}")
+
+                if stop_details:
+                    for stop in stop_details:
+                        if stop['names']:
+                            stops_section_lines.append(f"  Recipient(s): {stop['names']}")
+                        if stop['phone']:
+                            stops_section_lines.append(f"  Phone: {stop['phone']}")
+                        if stop['total_amount']:
+                            stops_section_lines.append(f"  $ to collect: ${stop['total_amount']}")
+                        if stop['per_person_note']:
+                            stops_section_lines.append(f"  Per person: {stop['per_person_note']}")
+                        if stop['language']:
+                            stops_section_lines.append(f"  Language: {stop['language']}")
+                        if stop['delivery_instructions']:
+                            stops_section_lines.append(f"  Instructions: {stop['delivery_instructions']}")
+                        if stop['notes']:
+                            stops_section_lines.append(f"  Notes: {stop['notes']}")
+                        # Customer text message in their language
+                        customer_msg = build_customer_text(stop, stop_eta_mins)
+                        stops_section_lines.append(f"  📱 Customer text: {customer_msg}")
+                else:
+                    stops_section_lines.append("  (No stop details found in routes CSV for this address)")
+                stops_section_lines.append("")  # Blank line between stops
+
+            stops_section = "\n".join(stops_section_lines)
 
             # Create personalized email template
             first_name = assignee_name.split()[0]  # Get first name
 
             email_template = f"""Hi {first_name},
 
-            **You have been assigned the following route(s):**
+You have been assigned the following route(s):
 
-            {address_list}
+{stops_section}
+Route Summary:
+• Base Time: {info['total_duration']}
+• Expected Traffic Time: {info['total_duration_in_traffic']}
+• Total Distance: {info['total_distance']}
+• Number of Addresses: {len(addresses)}
 
-            **Route Summary:**
-            • Base Time: {info['total_duration']}
-            • Expected Traffic Time: {info['total_duration_in_traffic']}
-            • Total Distance: {info['total_distance']}
-            • Number of Addresses: {len(addresses)}
+Instructions to use these addresses in Google Maps:
 
-            **Instructions to use these addresses in Google Maps:**
+Option 1: Click the link below to open your route (addresses are in optimized order):
+• Google Maps: {directions_link}
 
-            Option 1: Click one of the links below to open your route (addresses are in optimized order):
-            • Google Maps: {directions_link}
+Option 2: Copy and paste addresses into Google Maps:
+1. Go to https://www.google.com/maps/
+2. Click on "Directions"
+3. Enter your starting point
+4. Click "Add destination" and enter the first address
+5. Continue adding destinations for each address
 
-            Option 2: Copy and paste addresses into Google Maps:
-            1. Go to https://www.google.com/maps/
-            2. Click on "Directions"
-            3. Enter your starting point
-            4. Click "Add destination" and enter the first address
-            5. Continue adding destinations for each address
-
-            Thank you for your help!
-            Brightside Team :)
-            """
+Thank you for your help!
+Brightside Team :)
+"""
 
             # Display the template in a code block with copy button
             st.code(email_template, language="text")
 
-            # Add copy button
-            # if st.button(f"Copy Email Template for {assignee_name}", key=f"copy_{email}"):
-            #     st.success("Email template copied to clipboard!")
-
             # Display show addresses expander
-            with st.expander("Show addresses"):
-                for i, address in enumerate(ordered_addresses):
-                    st.write(f"{i+1}. {address}")
+            with st.expander("Show stop details"):
+                for i, addr in enumerate(ordered_addresses):
+                    stop_details = get_stop_details(addr, routes_df)
+                    st.write(f"**{i+1}. {addr}**")
+                    if stop_details:
+                        for stop in stop_details:
+                            cols_detail = st.columns(3)
+                            with cols_detail[0]:
+                                st.write(f"Recipient(s): {stop['names'] or '—'}")
+                                st.write(f"Phone: {stop['phone'] or '—'}")
+                            with cols_detail[1]:
+                                st.write(f"$ to collect: {stop['total_amount'] or '—'}")
+                                if stop['per_person_note']:
+                                    st.caption(f"Per person: {stop['per_person_note']}")
+                                st.write(f"Language: {stop['language'] or '—'}")
+                            with cols_detail[2]:
+                                st.write(f"Instructions: {stop['delivery_instructions'] or '—'}")
+                                st.write(f"Notes: {stop['notes'] or '—'}")
+                    else:
+                        st.caption("No matching stop details found in routes CSV.")
 
             st.markdown("---")
 
@@ -1405,19 +1625,24 @@ def app_home_page():
                 if confirmation_key == BRIGHTSIDE_CONFIRMATION_KEY:
                     with st.spinner("Sending emails..."):
                         success = True
+
+                        # Reload routes_df for email body building
+                        routes_df_email = st.session_state.get('routes_df', pd.DataFrame())
+                        if routes_df_email.empty:
+                            try:
+                                routes_df_email = load_routes_df_from_s3()
+                            except Exception:
+                                routes_df_email = pd.DataFrame()
+
                         for email, addresses in st.session_state.assignments.items():
                             assignee_name = next((name for name, e in EMAILS.items() if e == email), "Unknown")
                             directions_link = generate_directions_link(addresses)
 
-                            address_list = ""
                             # Need ordered addresses for email body too
                             try:
                                 ordered_addresses_email, _ = get_google_directions_route(addresses, GGL_DIRECTIONS_KEY)
                             except Exception:
-                                ordered_addresses_email = addresses # Fallback
-
-                            for addr in ordered_addresses_email:
-                                address_list += f"- {addr}\n"
+                                ordered_addresses_email = addresses  # Fallback
 
                             # Find the route summary info again for the email body
                             assigned_group_idx = None
@@ -1426,40 +1651,79 @@ def app_home_page():
                                     assigned_group_idx = idx
                                     break
 
-                            info = {'total_duration': 'N/A', 'total_duration_in_traffic': 'N/A', 'total_distance': 'N/A'} # Default values
+                            info = {'total_duration': 'N/A', 'total_duration_in_traffic': 'N/A', 'total_distance': 'N/A'}  # Default values
                             if assigned_group_idx is not None and hasattr(st.session_state, 'cached_traffic_info'):
                                 if assigned_group_idx in st.session_state.cached_traffic_info:
                                     info = st.session_state.cached_traffic_info[assigned_group_idx]
 
-                            email_body = f"""Hi {assignee_name},
+                            # Build per-stop section for email body
+                            traffic_time_str = info.get('total_duration_in_traffic', 'N/A')
+                            try:
+                                total_route_mins = int(traffic_time_str.replace('mins', '').replace('min', '').strip())
+                            except (ValueError, AttributeError):
+                                total_route_mins = None
 
-                            **You have been assigned the following route(s):**
+                            num_stops = len(ordered_addresses_email)
+                            stops_lines = []
+                            for stop_idx, addr in enumerate(ordered_addresses_email):
+                                stop_details = get_stop_details(addr, routes_df_email)
+                                if total_route_mins is not None and num_stops > 0:
+                                    stop_eta_mins = round(total_route_mins * (stop_idx + 1) / num_stops)
+                                else:
+                                    stop_eta_mins = None
 
-                            {address_list}
+                                stops_lines.append(f"Stop {stop_idx + 1}: {addr}")
+                                if stop_details:
+                                    for stop in stop_details:
+                                        if stop['names']:
+                                            stops_lines.append(f"  Recipient(s): {stop['names']}")
+                                        if stop['phone']:
+                                            stops_lines.append(f"  Phone: {stop['phone']}")
+                                        if stop['total_amount']:
+                                            stops_lines.append(f"  $ to collect: ${stop['total_amount']}")
+                                        if stop['per_person_note']:
+                                            stops_lines.append(f"  Per person: {stop['per_person_note']}")
+                                        if stop['language']:
+                                            stops_lines.append(f"  Language: {stop['language']}")
+                                        if stop['delivery_instructions']:
+                                            stops_lines.append(f"  Instructions: {stop['delivery_instructions']}")
+                                        if stop['notes']:
+                                            stops_lines.append(f"  Notes: {stop['notes']}")
+                                        customer_msg = build_customer_text(stop, stop_eta_mins)
+                                        stops_lines.append(f"  Customer text: {customer_msg}")
+                                stops_lines.append("")
 
-                            **Route Summary:**
-                            • Base Route Time: {info['total_duration']}
-                            • Expected Traffic Time: {info['total_duration_in_traffic']}
-                            • Total Distance: {info['total_distance']}
-                            • Number of Addresses: {len(addresses)}
+                            stops_section_email = "\n".join(stops_lines)
+                            first_name = assignee_name.split()[0]
 
-                            **Instructions to use these addresses in Google Maps:**
+                            email_body = f"""Hi {first_name},
 
-                            Option 1: Click one of the links below to open your route (addresses are in optimized order):
-                            • Web Browser: {directions_link}
-                            • iOS Device: {directions_link.replace("https://www.google.com/maps/dir/", "maps://maps.apple.com/?dirflg=d&")}
+You have been assigned the following route(s):
 
-                            Option 2: Copy and paste addresses into Google Maps:
-                            1. Go to https://www.google.com/maps/
-                            2. Click on "Directions"
-                            3. Enter your starting point
-                            4. Click "Add destination" and enter the first address
-                            5. Continue adding destinations for each address
+{stops_section_email}
+Route Summary:
+• Base Route Time: {info['total_duration']}
+• Expected Traffic Time: {info['total_duration_in_traffic']}
+• Total Distance: {info['total_distance']}
+• Number of Addresses: {len(addresses)}
 
-                            Thank you for your help!
+Instructions to use these addresses in Google Maps:
 
-                            Brightside Team :)
-                            """
+Option 1: Click the link below to open your route (addresses are in optimized order):
+• Web Browser: {directions_link}
+• iOS Device: {directions_link.replace("https://www.google.com/maps/dir/", "maps://maps.apple.com/?dirflg=d&")}
+
+Option 2: Copy and paste addresses into Google Maps:
+1. Go to https://www.google.com/maps/
+2. Click on "Directions"
+3. Enter your starting point
+4. Click "Add destination" and enter the first address
+5. Continue adding destinations for each address
+
+Thank you for your help!
+
+Brightside Team :)
+"""
 
                             if not send_email(email, "Your Route Assignment", email_body):
                                 success = False
@@ -1471,10 +1735,11 @@ def app_home_page():
                                 for key in list(st.session_state.keys()):
                                     if key != "step":
                                         del st.session_state[key]
-                                st.session_state.step = 1 # Reset step to 1 on exit
-                                st.rerun() # Rerun to go back to step 1
+                                st.session_state.step = 1  # Reset step to 1 on exit
+                                st.rerun()  # Rerun to go back to step 1
                 else:
                     st.error("Invalid confirmation key. Please try again.")
 
+
 # Call the home page function
-app_home_page() 
+app_home_page()

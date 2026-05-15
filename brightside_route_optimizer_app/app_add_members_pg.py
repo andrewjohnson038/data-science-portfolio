@@ -1,3 +1,5 @@
+# app_add_members_pg.py
+
 import streamlit as st
 import pandas as pd
 import boto3
@@ -5,7 +7,6 @@ from io import StringIO
 import logging
 import os
 from datetime import datetime
-
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -54,7 +55,7 @@ def load_team_members():
         # Log the error to file
         logger.error(f"Failed to load team members from S3: {str(e)}")
         # Return empty DataFrame if S3 load fails
-        return pd.DataFrame(columns=['name', 'email'])
+        return pd.DataFrame(columns=['name', 'email', 'address'])
 
 
 def save_team_members(df):
@@ -86,13 +87,14 @@ st.write("Add Members:")
 with st.form("add_member_form"):
     new_name = st.text_input("Name")
     new_email = st.text_input("Email")
+    new_address = st.text_input("Address")
     submitted = st.form_submit_button("Add Member")
 
     if submitted and new_name and new_email:
         # Load fresh data from S3
         current_members_df = load_team_members()
         # Add new member to DataFrame
-        new_member = pd.DataFrame({'name': [new_name], 'email': [new_email]})
+        new_member = pd.DataFrame({'name': [new_name], 'email': [new_email], 'address': [new_address]})
         current_members_df = pd.concat([current_members_df, new_member], ignore_index=True)
         save_team_members(current_members_df)
         st.success(f"Added {new_name} to team members!")
